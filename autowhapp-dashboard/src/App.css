@@ -1,0 +1,134 @@
+/* Estilos generales */
+.App {
+  text-align: center;
+  padding: 40px;
+  background-color: #f0f4f8;
+  min-height: 100vh;
+  font-family: 'Arial', sans-serif;
+}
+
+/* Título principal */
+.title {
+  color: #1e3a8a;
+  font-size: 2.5rem;
+  margin-bottom: 40px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Secciones del dashboard */
+.dashboard-section {
+  margin-bottom: 40px;
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.section-title {
+  color: #1e3a8a;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+}
+
+/* Formulario y grupos de entrada */
+.faq-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.label {
+  color: #1e3a8a;
+  font-weight: bold;
+  margin-bottom: 5px;
+  text-align: left;
+}
+
+.input, .textarea {
+  padding: 10px;
+  font-size: 1rem;
+  border: 2px solid #93c5fd;
+  border-radius: 5px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.input:focus, .textarea:focus {
+  border-color: #3b82f6;
+}
+
+.file-input {
+  padding: 5px;
+}
+
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 10px;
+  color: #1e3a8a;
+}
+
+/* Tarjetas de módulos */
+.module-card {
+  background-color: #dbeafe;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.module-title {
+  color: #1e3a8a;
+  font-size: 1.4rem;
+  margin-bottom: 10px;
+}
+
+.module-info {
+  color: #3b82f6;
+}
+
+/* Botón */
+.submit-btn {
+  padding: 12px 20px;
+  font-size: 1.1rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 20px;
+}
+
+.submit-btn:hover {
+  background-color: #1e3a8a;
+}
+
+/* Mensaje de feedback */
+.message {
+  margin-top: 20px;
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 1rem;
+  background-color: #dbeafe;
+}
+
+.message.success {
+  color: #15803d;
+}
+
+.message.error {
+  color: #b91c1c;
+}
