@@ -29,7 +29,7 @@ const App: React.FC = () => {
       orderMessage: subscribedModules.includes('Pedidos') ? orderMessage : undefined,
     };
     try {
-      const webhookUrl: string = 'http://localhost:5678/webhook/faq';
+      const webhookUrl: string = 'http://localhost:5678/webhook-test/guardar-pedido';
       const response = await axios.post(webhookUrl, configData);
       setMessage('Configuración guardada con éxito');
       setContext('');
