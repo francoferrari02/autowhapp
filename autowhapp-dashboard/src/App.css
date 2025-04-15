@@ -33,6 +33,14 @@
   margin-bottom: 20px;
 }
 
+/* Subtítulo: Datos de la Empresa */
+.section-subtitle {
+  font-size: 1.2em;
+  color: #1e3a8a; /* Mismo color que los otros subtítulos */
+  text-align: left; /* Alineado a la izquierda */
+  margin-bottom: 10px;
+}
+
 /* Formulario y grupos de entrada */
 .faq-form {
   display: flex;

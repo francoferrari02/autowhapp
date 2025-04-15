@@ -10,6 +10,11 @@ const App: React.FC = () => {
   const [question, setQuestion] = useState<string>('');
   const [answer, setAnswer] = useState<string>('');
 
+  // Estados para Datos de la Empresa
+  const [companyName, setCompanyName] = useState<string>('');
+  const [location, setLocation] = useState<string>('');
+  const [businessHours, setBusinessHours] = useState<string>('');
+
   // Estados para Módulos (ejemplo: Pedidos)
   const [orderMessage, setOrderMessage] = useState<string>('');
 
@@ -27,6 +32,9 @@ const App: React.FC = () => {
       files: files.map(file => file.name), // Solo nombres por ahora
       faqs: [{ question, answer }],
       orderMessage: subscribedModules.includes('Pedidos') ? orderMessage : undefined,
+      companyName,
+      location,
+      businessHours,
     };
     try {
       const webhookUrl: string = 'http://localhost:5678/webhook-test/guardar-pedido';
@@ -37,6 +45,9 @@ const App: React.FC = () => {
       setQuestion('');
       setAnswer('');
       setOrderMessage('');
+      setCompanyName('');
+      setLocation('');
+      setBusinessHours('');
     } catch (error) {
       setMessage('Error al guardar la configuración');
       console.error(error);
@@ -57,6 +68,40 @@ const App: React.FC = () => {
       {/* Sección: Configuración General */}
       <section className="dashboard-section">
         <h2 className="section-title">Configuración General</h2>
+
+        {/* Subtítulo: Datos de la Empresa */}
+        <h3 className="section-subtitle">Datos de la empresa</h3>
+        <div className="input-group">
+          <label className="label">Nombre:</label>
+          <input
+            type="text"
+            className="input"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Nombre de la empresa..."
+          />
+        </div>
+        <div className="input-group">
+          <label className="label">Ubicación:</label>
+          <input
+            type="text"
+            className="input"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Ubicación de la empresa..."
+          />
+        </div>
+        <div className="input-group">
+          <label className="label">Horarios de Atención:</label>
+          <input
+            type="text"
+            className="input"
+            value={businessHours}
+            onChange={(e) => setBusinessHours(e.target.value)}
+            placeholder="Horarios de atención..."
+          />
+        </div>
+
         <form className="faq-form" onSubmit={handleSubmit}>
           <div className="input-group">
             <label className="label">Contexto del Bot:</label>
