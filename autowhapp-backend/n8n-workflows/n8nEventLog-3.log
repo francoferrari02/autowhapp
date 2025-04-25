@@ -1,0 +1,2 @@
+{"__type":"$$EventMessageAudit","id":"e3cc498a-864e-4194-b23d-7f51aa76dae5","ts":"2025-04-25T14:51:56.896-04:00","eventName":"n8n.audit.user.login.success","message":"n8n.audit.user.login.success","payload":{"userId":"50ecd661-bf68-4edd-9638-827720050128","_email":"frferrari@itba.edu.ar","_firstName":"Franco","_lastName":"Ferrari","globalRole":"global:owner","authenticationMethod":"email"}}
+{"__type":"$$EventMessageConfirm","confirm":"e3cc498a-864e-4194-b23d-7f51aa76dae5","ts":"2025-04-25T14:51:56.896-04:00","source":{"id":"0","name":"eventBus"}}

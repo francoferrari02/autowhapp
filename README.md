@@ -21,5 +21,13 @@ AutoWhapp es un proyecto que implementa un chatbot automatizado para WhatsApp, c
 
 ### Backend
 - Ve a `autowhapp-backend/`
-- Corre n8n: `docker run -it --rm --name n8n -p 5678:5678 -v $(pwd)/n8n-workflows:/home/node/.n8n n8nio/n8n`
+- Instalar dependencias: `npm install`
+- Correr Ngrok: `ngrok http 5678`
+- Cada vez que se inicie ngrok, se generara un nuevo URL, se debe actualizar en `autowhapp-backend/whatsapp/client.js` cambiando el valor de `webhookUrl`, deberia quedar algo asi `const webhookUrl = 'https://NUEVO_URL_DE_NGROK/webhook/procesar-mensaje';`
+- Correr backend de WhatsApp: `node index.js` y escanear el QR vinculandolo en WSP
+- Corre n8n: `docker run -it --rm --name n8n -p 5678:5678 -v $(pwd)/n8n-workflows:/home/node/.n8n -e WEBHOOK_URL=TU_URL_DE_NGROK -e N8N_TRUST_PROXY=true -e N8N_LOG_LEVEL=debug n8nio/n8n:1.86.1`
 - Abre `http://localhost:5678` para configurar los flujos.
+- Confirmar que el webhook de n8n tiene el URL antes puesto en uno de los pasos anteriores, si no es el mismo, copiar el que aparece en n8n y cambiar la variable por esa
+- El bot esta configurado para responder solamente en un chat que se llama "Prueba facultad", crear un grupo con otro numero para poder mandar mensaje a ese grupo y que el bot conteste
+
+
