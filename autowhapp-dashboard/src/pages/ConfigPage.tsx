@@ -1,5 +1,4 @@
 import React from 'react';
-import { Box } from '@mui/material';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import MainConfig from '../components/MainConfig';
@@ -8,23 +7,33 @@ import Products from '../components/Products';
 
 const ConfigPage: React.FC = () => {
   return (
-    <Box>
+    <div>
       <Header />
-      <Box display="flex">
+      <div className="flex">
         <Sidebar selected="config" />
-        <Box flexGrow={1} sx={{ backgroundColor: '#F7F9FC', padding: '24px' }}>
-          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-            <Box sx={{ flex: { xs: '100%', md: '70%' } }}>
-              <MainConfig />
-            </Box>
-            <Box sx={{ flex: { xs: '100%', md: '30%' } }}>
-              <BotStatus />
-              <Products />
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+
+        <div className="flex-grow bg-blue-600 p-6">
+        {/* Header interior */}
+        <div className="flex justify-between items-start mb-6">
+            <h2 className="text-2xl font-poppins font-bold text-white mt-3">
+                Configuración de Chatbot
+        </h2>
+            <div className="flex-1 flex justify-end max-w-xl">
+            <BotStatus />
+            </div>
+        </div>
+        {/* Resto de la configuración */}
+        <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 md:flex-[0_0_100%]">
+                <MainConfig />
+            </div>
+            <div className="flex-1 md:flex-[0_0_100%]">
+                <Products />
+            </div>
+        </div>
+        </div>
+            </div>
+    </div>
   );
 };
 

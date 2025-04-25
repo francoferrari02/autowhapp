@@ -8,35 +8,41 @@ const BotStatus: React.FC = () => {
   const handleToggle = () => {
     const newStatus = !isActive;
     setIsActive(newStatus);
-    // Simular el guardado y la notificación a n8n
-    setMessage(`Bot ${newStatus ? 'encendido' : 'apagado'} con éxito (simulado)`);
+    
     console.log('Simulando envío a n8n:', { isActive: newStatus });
   };
 
   return (
-    <Card sx={{ boxShadow: '0 4px 6px rgba(0,0,0,0.1)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', marginBottom: '8px' }}>
+    <Card 
+    sx={{ 
+      boxShadow: '0 0 5px 5px rgba(0,0,0,0.20)', 
+      borderRadius: '40px', 
+      px: 3, py: 0,
+      minWidth: 400,
+      width: "100%",
+      maxWidth: "480px",
+      marginTop: "-10px"
+      
+    }}
+  >
+    <CardContent sx={{ 
+      p: 3, 
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+        <Typography
+          variant="h6"
+          sx={{ fontFamily: 'Poppins', fontWeight: 'bold', minWidth: 130, pr: 3 }}
+        >
           Estado del Bot
         </Typography>
-        <Switch
-          checked={isActive}
-          onChange={handleToggle}
-          sx={{
-            '& .MuiSwitch-thumb': { backgroundColor: isActive ? '#34C759' : '#D1D5DB' },
-            '& .MuiSwitch-track': { backgroundColor: isActive ? '#34C759' : '#D1D5DB' },
-          }}
-        />
-        <Typography sx={{ fontFamily: 'Poppins', display: 'inline', marginLeft: '8px' }}>
+        <Switch checked={isActive} onChange={handleToggle} />
+        <Typography sx={{ fontFamily: 'Poppins', ml: 1 }}>
           {isActive ? 'Encendido' : 'Apagado'}
         </Typography>
-        {message && (
-          <Typography sx={{ color: message.includes('Error') ? 'red' : 'green', marginTop: '8px' }}>
-            {message}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+      
+    </CardContent>
+  </Card>
   );
 };
 

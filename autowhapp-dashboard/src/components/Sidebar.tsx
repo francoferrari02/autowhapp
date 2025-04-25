@@ -1,74 +1,80 @@
-import React from 'react'
+import { useNavigate } from 'react-router-dom';
 import {
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText
-} from '@mui/material'
-import SettingsIcon from '@mui/icons-material/Settings'
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
-import BarChartIcon from '@mui/icons-material/BarChart'
-import { useNavigate } from 'react-router-dom'
+ ChatBubbleBottomCenterTextIcon,
+  ShoppingCartIcon,
+  ChartBarIcon
+} from '@heroicons/react/24/outline';
 
 interface SidebarProps {
-  selected: 'config' | 'orders' | 'analytics'
+  selected: 'config' | 'orders' | 'analytics';
 }
+
+const NAV_ITEMS = [
+  {
+    id: 'config',
+    label: 'Chatbot',
+    icon: ChatBubbleBottomCenterTextIcon,
+    path: '/',
+  },
+  {
+    id: 'orders',
+    label: 'Pedidos',
+    icon: ShoppingCartIcon,
+    path: '/orders',
+  },
+  {
+    id: 'analytics',
+    label: 'Analíticas',
+    icon: ChartBarIcon,
+    path: '/analytics',
+  }
+];
 
 const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
-    <List sx={{ width: 200, backgroundColor: '#F7F9FC', height: '100vh' }}>
-      <ListItem disablePadding>
-        <ListItemButton
-          selected={selected === 'config'}
-          sx={{ '&.Mui-selected': { backgroundColor: '#93C5FD' } }}
-          onClick={() => navigate('/')}
-        >
-          <ListItemIcon>
-            <SettingsIcon />
-          </ListItemIcon>
-          <ListItemText
-            primary="Configuración"
-            primaryTypographyProps={{ fontFamily: 'Poppins' }}
-          />
-        </ListItemButton>
-      </ListItem>
+    <aside className="w-52 bg-[#000000] min-h-screen p-4">
+      <nav className="flex flex-col gap-4">
+        {NAV_ITEMS.map(({ id, label, icon: Icon, path }) => {
+          const isActive = selected === id;
+          return (
+            <button
+              key={id}
+              onClick={() => navigate(path)}
+              className={`relative flex items-center gap-3 px-4 py-5 font-poppins transition-colors group
+                w-[calc(100%+16px)] -mr-4
+                ${isActive
+                  ? 'bg-blue-600 text-white font-semibold rounded-l-xl rounded-r-none'
+                  : 'bg-[#273168] hover:bg-[#3b4484] text-blue-100 rounded-l-xl rounded-r-none'
+                }
+              `}
+              style={
+                !isActive
+                  ? { 
+                      boxShadow: `
+                        inset -11px 0 16px -6px rgba(10, 10, 16, 0.75), 
+                        -2px 2px 8px 0 rgba(0,0,0,0.10)
+                      `
+                    }
+                  : { 
+                      // Solo sombra arriba/izquierda/abajo, no a la derecha
+                      //boxShadow: '-2px 2px 8px 0px rgba(0,0,0,0.90)'
+                    }
+              }
+            >
+              <Icon className={`h-6 w-6 transition-colors ${
+                isActive ? 'text-white' : 'text-blue-200'
+              }`} />
+              <span className={`text-lg ${isActive ? 'text-white' : 'text-blue-100'}`}>
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+};
 
-      <ListItem disablePadding>
-        <ListItemButton
-          selected={selected === 'orders'}
-          sx={{ '&.Mui-selected': { backgroundColor: '#93C5FD' } }}
-          onClick={() => navigate('/orders')}
-        >
-          <ListItemIcon>
-            <ShoppingCartIcon />
-          </ListItemIcon>
-          <ListItemText
-            primary="Pedidos"
-            primaryTypographyProps={{ fontFamily: 'Poppins' }}
-          />
-        </ListItemButton>
-      </ListItem>
-
-      <ListItem disablePadding>
-        <ListItemButton
-          selected={selected === 'analytics'}
-          sx={{ '&.Mui-selected': { backgroundColor: '#93C5FD' } }}
-          onClick={() => navigate('/analytics')}
-        >
-          <ListItemIcon>
-            <BarChartIcon />
-          </ListItemIcon>
-          <ListItemText
-            primary="Analíticas"
-            primaryTypographyProps={{ fontFamily: 'Poppins' }}
-          />
-        </ListItemButton>
-      </ListItem>
-    </List>
-  )
-}
-
-export default Sidebar
+export default Sidebar;
