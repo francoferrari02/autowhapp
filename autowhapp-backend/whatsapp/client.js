@@ -1,6 +1,7 @@
 const { Client } = require('whatsapp-web.js');
 const axios = require('axios');
 const qrcode = require('qrcode-terminal');
+const db = require('../db'); // Agregado para la funcionalidad de identificar negocio
 
 const client = new Client();
 
@@ -22,16 +23,24 @@ client.on('message', async (msg) => {
     return;
   }
 
-  const webhookUrl = 'https://62fb-181-169-106-31.ngrok-free.app/webhook/procesar-mensaje'; // Modificar webhookUrl según sea necesario
+  // Identificar negocio basado en el número del cliente
+  const negocio = await identificarNegocio(msg.from);
+  const contexto = negocio.contexto;
+  const moduloPedidosActivo = 1;
+
+  const webhookUrl = 'https://fe58-190-224-155-63.ngrok-free.app/webhook/procesar-mensaje'; // Modificar webhookUrl según sea necesario
 
   const payload = {
     mensaje: msg.body,
+    contexto: contexto,
     numeroCliente: msg.from,
-    negocioId: 1
+    negocioId: negocio.id,
+    moduloPedidosActivo: moduloPedidosActivo
   };
 
   try {
     const res = await axios.post(webhookUrl, payload);
+    console.log('📤 Valor de moduloPedidosActivo:', moduloPedidosActivo, 'Tipo:', typeof moduloPedidosActivo);
     console.log('📨 Respuesta de n8n:', res.data);
 
     const respuesta = res.data; 
@@ -48,5 +57,28 @@ client.on('message', async (msg) => {
 });
 
 client.initialize();
+
+// Función para identificar el negocio basado en el número del cliente
+function identificarNegocio(numero) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM negocios WHERE numero_telefono = ?', [numero], (err, row) => {
+      if (err) return reject(err);
+      if (!row) {
+        // Negocio no encontrado, usar un contexto por defecto
+        resolve({
+          id: 1,
+          contexto: 'Eres el bot de asistencia de "Patitas Felices", una veterinaria ubicada en Rosario, Argentina...',
+          modulo_pedidos: true
+        });
+      } else {
+        resolve({
+          id: row.id,
+          contexto: row.contexto,
+          modulo_pedidos: row.modulo_pedidos === 1
+        });
+      }
+    });
+  });
+}
 
 module.exports = client;
