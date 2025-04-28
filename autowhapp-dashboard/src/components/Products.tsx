@@ -1,4 +1,5 @@
-import React, { useState, ChangeEvent, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
 import { Card, CardContent, Typography, Button, TextField, Table, TableBody, TableCell, TableHead, TableRow, Box, InputAdornment } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -8,19 +9,38 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import { Product } from '../types';
 
-const Products: React.FC = () => {
-  const mockProducts: Product[] = [
-    { id: 1, name: 'Pizza Margherita', description: 'Pizza clásica con tomate', price: '$1500', image: 'pizza.jpg' },
-    { id: 2, name: 'Coca-Cola', description: 'Bebida gaseosa 500ml', price: '$500', image: 'coca.jpg' },
-  ];
+interface ProductsProps {
+  negocioId: number;
+}
 
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+const Products: React.FC<ProductsProps> = ({ negocioId }) => {
+  const [products, setProducts] = useState<Product[]>([]);
   const [newProduct, setNewProduct] = useState<Product>({ name: '', description: '', price: '', image: '' });
   const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [message, setMessage] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Cargar productos al montar el componente
+  useEffect(() => {
+    axios.get(`http://localhost:3000/api/productos/${negocioId}`)
+      .then(response => {
+        const fetchedProducts = (response.data as any[]).map((p: any) => ({
+          id: p.id,
+          name: p.nombre,
+          description: p.descripcion || '',
+          price: p.precio != null ? p.precio.toString() : '0', // Manejar null
+          image: p.foto || '',
+        }));
+        setProducts(fetchedProducts);
+      })
+      .catch(error => {
+        console.error('Error al cargar productos:', error);
+        setMessage('Error al cargar los productos');
+        setProducts([]);
+      });
+  }, [negocioId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -31,7 +51,7 @@ const Products: React.FC = () => {
     }
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
       setFiles(selectedFiles);
@@ -43,63 +63,120 @@ const Products: React.FC = () => {
     }
   };
 
-  const addProduct = () => {
+  const addProduct = async () => {
     if (!newProduct.name || !newProduct.price) {
       setMessage('Por favor, completa los campos obligatorios');
       return;
     }
 
-    const newProductWithId = { ...newProduct, id: products.length + 1 };
-    const updatedProducts = [...products, newProductWithId];
-    setProducts(updatedProducts);
-    setNewProduct({ name: '', description: '', price: '', image: '' });
-    setFiles([]);
-    setMessage('Producto agregado con éxito (simulado)');
-    console.log('Simulando envío a n8n:', {
-      products: updatedProducts,
-      files: files.map(file => file.name),
-    });
+    const priceValue = parseFloat(newProduct.price);
+    if (isNaN(priceValue) || priceValue <= 0) {
+      setMessage('El precio debe ser un número válido mayor que 0');
+      return;
+    }
+
+    try {
+      const response = await axios.post('http://localhost:3000/api/productos', {
+        negocio_id: negocioId,
+        nombre: newProduct.name,
+        descripcion: newProduct.description || '',
+        precio: priceValue,
+        foto: newProduct.image || null,
+      });
+
+      const responseData = response.data as { success: boolean };
+      if (responseData.success) {
+        // Volver a cargar los productos desde el backend
+        const updatedResponse = await axios.get(`http://localhost:3000/api/productos/${negocioId}`);
+        const updatedProducts = (updatedResponse.data as any[]).map((p: any) => ({
+          id: p.id,
+          name: p.nombre,
+          description: p.descripcion || '',
+          price: p.precio != null ? p.precio.toString() : '0', // Manejar null
+          image: p.foto || '',
+        }));
+        setProducts(updatedProducts);
+        setNewProduct({ name: '', description: '', price: '', image: '' });
+        setFiles([]);
+        setMessage('Producto agregado con éxito');
+      }
+    } catch (error: any) {
+      console.error('Error al agregar producto:', error);
+      setMessage(`Error al agregar producto: ${error.response?.data?.error || error.message}`);
+    }
   };
 
-  const startEditing = (index: number) => {
-    setEditIndex(index);
-    setEditProduct({ ...products[index] });
+  const startEditing = (product: Product) => {
+    setEditId(product.id || null);
+    setEditProduct({ ...product });
     setFiles([]);
   };
 
-  const saveEdit = () => {
-    if (!editProduct || !editProduct.name || !editProduct.price) {
+  const saveEdit = async () => {
+    if (!editProduct || !editProduct.name || !editProduct.price || !editId) {
       setMessage('Por favor, completa los campos obligatorios');
       return;
     }
 
-    const updatedProducts = products.map((product, index) =>
-      index === editIndex ? editProduct : product
-    );
-    setProducts(updatedProducts);
-    setEditProduct(null);
-    setEditIndex(null);
-    setFiles([]);
-    setMessage('Producto actualizado con éxito (simulado)');
-    console.log('Simulando envío a n8n:', {
-      products: updatedProducts,
-      files: files.map(file => file.name),
-    });
+    const priceValue = parseFloat(editProduct.price);
+    if (isNaN(priceValue) || priceValue <= 0) {
+      setMessage('El precio debe ser un número válido mayor que 0');
+      return;
+    }
+
+    try {
+      await axios.put(`http://localhost:3000/api/productos/${editId}`, {
+        nombre: editProduct.name,
+        descripcion: editProduct.description || '',
+        precio: priceValue,
+        foto: editProduct.image || null,
+      });
+
+      // Volver a cargar los productos desde el backend
+      const updatedResponse = await axios.get(`http://localhost:3000/api/productos/${negocioId}`);
+      const updatedProducts = (updatedResponse.data as any[]).map((p: any) => ({
+        id: p.id,
+        name: p.nombre,
+        description: p.descripcion || '',
+        price: p.precio != null ? p.precio.toString() : '0', // Manejar null
+        image: p.foto || '',
+      }));
+      setProducts(updatedProducts);
+      setEditProduct(null);
+      setEditId(null);
+      setFiles([]);
+      setMessage('Producto actualizado con éxito');
+    } catch (error: any) {
+      console.error('Error al actualizar producto:', error);
+      setMessage(`Error al actualizar producto: ${error.response?.data?.error || error.message}`);
+    }
   };
 
   const cancelEdit = () => {
     setEditProduct(null);
-    setEditIndex(null);
+    setEditId(null);
     setFiles([]);
   };
 
-  const deleteProduct = (index: number) => {
-    const updatedProducts = products.filter((_, i) => i !== index);
-    setProducts(updatedProducts);
-    setMessage('Producto eliminado con éxito (simulado)');
-    console.log('Simulando envío a n8n:', {
-      products: updatedProducts,
-    });
+  const deleteProduct = async (id: number) => {
+    try {
+      await axios.delete(`http://localhost:3000/api/productos/${id}`);
+
+      // Volver a cargar los productos desde el backend
+      const updatedResponse = await axios.get(`http://localhost:3000/api/productos/${negocioId}`);
+      const updatedProducts = (updatedResponse.data as any[]).map((p: any) => ({
+        id: p.id,
+        name: p.nombre,
+        description: p.descripcion || '',
+        price: p.precio != null ? p.precio.toString() : '0', // Manejar null
+        image: p.foto || '',
+      }));
+      setProducts(updatedProducts);
+      setMessage('Producto eliminado con éxito');
+    } catch (error: any) {
+      console.error('Error al eliminar producto:', error);
+      setMessage(`Error al eliminar producto: ${error.response?.data?.error || error.message}`);
+    }
   };
 
   // Filtrado según searchTerm, ignorando mayúsculas/minúsculas
@@ -133,7 +210,7 @@ const Products: React.FC = () => {
               name="name"
               value={editProduct ? editProduct.name : newProduct.name}
               onChange={handleInputChange}
-              placeholder="Pizza Margherita"
+              placeholder="Corte de pelo"
               variant="outlined"
               sx={{ mb: 3 }}
             />
@@ -143,7 +220,7 @@ const Products: React.FC = () => {
               name="description"
               value={editProduct ? editProduct.description : newProduct.description}
               onChange={handleInputChange}
-              placeholder="Pizza clásica con tomate"
+              placeholder="Corte clásico para caballeros"
               variant="outlined"
               sx={{ mb: 3 }}
             />
@@ -151,9 +228,10 @@ const Products: React.FC = () => {
               fullWidth
               label="Precio"
               name="price"
+              type="number" // Cambiar a type="number" para evitar entradas no numéricas
               value={editProduct ? editProduct.price : newProduct.price}
               onChange={handleInputChange}
-              placeholder="$1500"
+              placeholder="2000"
               variant="outlined"
               sx={{ mb: 3 }}
             />
@@ -221,7 +299,7 @@ const Products: React.FC = () => {
 
           {/* Sección tabla productos */}
           <Box sx={{ px: 2, py: 3, borderTop: '2px solid #e0e0e0' }}>
-            <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontFamily: 'Poppins907', fontWeight: 'bold', mb: 2 }}>
               Lista de Productos/Servicios
             </Typography>
             <TextField
@@ -251,23 +329,23 @@ const Products: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredProducts.map((product, index) => (
-                  <TableRow key={product.id || index}>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
                     <TableCell>{product.name}</TableCell>
-                    <TableCell>{product.description}</TableCell>
+                    <TableCell>{product.description || '-'}</TableCell>
                     <TableCell>{product.price}</TableCell>
                     <TableCell>{product.image || 'Sin imagen'}</TableCell>
                     <TableCell>
                       <Button
                         startIcon={<EditIcon />}
                         sx={{ color: '#1E3A8A', mr: 1 }}
-                        onClick={() => startEditing(index)}
+                        onClick={() => startEditing(product)}
                         aria-label={`Editar ${product.name}`}
                       />
                       <Button
                         startIcon={<DeleteIcon />}
                         sx={{ color: '#EF4444' }}
-                        onClick={() => deleteProduct(index)}
+                        onClick={() => product.id && deleteProduct(product.id)}
                         aria-label={`Eliminar ${product.name}`}
                       />
                     </TableCell>

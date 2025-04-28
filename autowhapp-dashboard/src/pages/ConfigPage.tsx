@@ -67,7 +67,7 @@ const ConfigPage: React.FC = () => {
                   <MainConfig negocioId={negocioId} />
                 </div>
                 <div className="flex-1 md:flex-[0_0_100%]">
-                  <Products />
+                  <Products negocioId={negocioId} />
                 </div>
               </div>
             </>

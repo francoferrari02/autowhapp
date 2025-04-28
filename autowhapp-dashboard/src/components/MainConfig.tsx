@@ -35,6 +35,12 @@ type FaqWithId = {
   isNew?: boolean;
 };
 
+// Tipo para la respuesta de axios.post al crear una FAQ
+interface CreateFaqResponse {
+  success: boolean;
+  id: number;
+}
+
 // Componente para input con label e icono
 const LabeledInput: React.FC<{
   label: string;
@@ -68,9 +74,19 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   const [message, setMessage] = useState<string>('');
   const [customType, setCustomType] = useState<string>('');
 
+  const defaultHours = {
+    Lunes: { open: '09:00', close: '18:00' },
+    Martes: { open: '09:00', close: '18:00' },
+    Miércoles: { open: '09:00', close: '18:00' },
+    Jueves: { open: '09:00', close: '18:00' },
+    Viernes: { open: '09:00', close: '18:00' },
+    Sábado: { open: '09:00', close: '18:00' },
+    Domingo: { open: '09:00', close: '18:00' },
+  };
+
   useEffect(() => {
     setError(null);
-    console.log('Cargando negocio con ID:', negocioId); // Log para depurar
+    console.log('Cargando negocio con ID:', negocioId);
     axios.get(`http://localhost:3000/api/negocio/${negocioId}`)
       .then(response => {
         const data = response.data as {
@@ -83,36 +99,46 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           estado_bot: boolean;
           contexto?: string;
         };
-        const defaultHours = {
-          Lunes: { open: '09:00', close: '18:00' },
-          Martes: { open: '09:00', close: '18:00' },
-          Miércoles: { open: '09:00', close: '18:00' },
-          Jueves: { open: '09:00', close: '18:00' },
-          Viernes: { open: '09:00', close: '18:00' },
-          Sábado: { open: '09:00', close: '18:00' },
-          Domingo: { open: '09:00', close: '18:00' },
-        };
-        console.log('Datos del negocio cargados:', data); // Log para depurar
+        console.log('Datos del negocio cargados:', data);
+        let parsedHours: Record<string, { open: string; close: string }>;
+        try {
+          parsedHours = data.horarios ? JSON.parse(data.horarios) : defaultHours;
+          // Validar que parsedHours tenga la estructura correcta
+          const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+          const isValidHours = days.every(day => 
+            parsedHours[day] && 
+            typeof parsedHours[day] === 'object' && 
+            'open' in parsedHours[day] && 
+            'close' in parsedHours[day]
+          );
+          if (!isValidHours) {
+            console.warn('Horarios no tienen el formato esperado, usando valores por defecto');
+            parsedHours = defaultHours;
+          }
+        } catch (e) {
+          console.error('Error al parsear horarios:', e);
+          parsedHours = defaultHours;
+        }
         setBusiness({
           id: data.id,
           name: data.nombre,
           type: data.tipo_negocio,
           location: data.localidad,
           address: data.direccion,
-          hours: data.horarios ? JSON.parse(data.horarios) : defaultHours,
+          hours: parsedHours,
           isActive: data.estado_bot,
         });
         setContext(data.contexto || '');
         setCustomType(businessTypes.find(bt => bt.value === data.tipo_negocio) ? '' : data.tipo_negocio);
       })
-      .catch(error => {
+      .catch((error: any) => {
         console.error('Error fetching business data:', error);
         if (error.response?.status === 404) {
           setError('Negocio no encontrado');
         } else {
           setError('Error al cargar la configuración');
         }
-        setBusiness(null); // Asegurarse de que business sea null si hay error
+        setBusiness(null);
       });
 
     axios.get(`http://localhost:3000/api/faqs/${negocioId}`)
@@ -124,7 +150,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         }));
         setFaqs(mapped);
       })
-      .catch(error => {
+      .catch((error: any) => {
         console.error('Error fetching FAQs:', error);
         setFaqs([]);
       });
@@ -178,16 +204,24 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
     setFaqs([...faqs, { question: '', answer: '', isNew: true }]);
   };
 
-  const removeFaq = (index: number) => {
+  const removeFaq = async (index: number) => {
     const toDelete = faqs[index];
-    if (toDelete.id) {
-      axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`)
-        .then(() => {
-          setFaqs((prev) => prev.filter((_, i) => i !== index));
-        })
-        .catch(() => setMessage('Error al eliminar FAQ'));
-    } else {
-      setFaqs((prev) => prev.filter((_, i) => i !== index));
+    try {
+      if (toDelete.id) {
+        // Eliminar FAQ del backend
+        await axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`);
+      }
+      // Actualizar la lista de FAQs desde el backend
+      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
+      setFaqs(res.data.map((f) => ({
+        id: f.id,
+        question: f.pregunta,
+        answer: f.respuesta,
+      })));
+      setMessage('FAQ eliminada con éxito');
+    } catch (error: any) {
+      console.error('Error al eliminar FAQ:', error);
+      setMessage(`Error al eliminar FAQ: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -207,21 +241,31 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
 
       // CRUD FAQs
       for (const faq of faqs) {
-        if (!faq.question.trim() && !faq.answer.trim()) continue;
+        // Validar que la FAQ tenga pregunta y respuesta no vacías
+        if (!faq.question.trim() || !faq.answer.trim()) {
+          setMessage(`Error: La FAQ "${faq.question || 'sin pregunta'}" tiene campos vacíos. Por favor, completa ambos campos.`);
+          return;
+        }
+
         if (!faq.id) {
-          await axios.post('http://localhost:3000/api/faqs', {
+          // Crear nueva FAQ
+          const response = await axios.post<CreateFaqResponse>('http://localhost:3000/api/faqs', {
             negocioId,
-            pregunta: faq.question,
-            respuesta: faq.answer,
+            pregunta: faq.question.trim(),
+            respuesta: faq.answer.trim(),
           });
+          // Actualizar el ID de la FAQ recién creada
+          faq.id = response.data.id;
         } else {
+          // Actualizar FAQ existente
           await axios.put(`http://localhost:3000/api/faqs/${faq.id}`, {
-            pregunta: faq.question,
-            respuesta: faq.answer,
+            pregunta: faq.question.trim(),
+            respuesta: faq.answer.trim(),
           });
         }
       }
-      // Actualiza lista a lo que hay en la base
+
+      // Actualiza la lista de FAQs desde el backend
       const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
       setFaqs(res.data.map((f) => ({
         id: f.id,
@@ -230,9 +274,9 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
       })));
 
       setMessage('Configuración guardada con éxito');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving configuration:', error);
-      setMessage('Error al guardar la configuración');
+      setMessage(`Error al guardar la configuración: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -328,13 +372,13 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
                 <span className="w-24 font-poppins text-gray-700">{day}</span>
                 <input
                   type="time"
-                  value={business.hours[day].open}
+                  value={business.hours && business.hours[day]?.open || '09:00'}
                   onChange={(e) => handleHoursChange(day, 'open', e.target.value)}
                   className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
                 />
                 <input
                   type="time"
-                  value={business.hours[day].close}
+                  value={business.hours && business.hours[day]?.close || '18:00'}
                   onChange={(e) => handleHoursChange(day, 'close', e.target.value)}
                   className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
                 />

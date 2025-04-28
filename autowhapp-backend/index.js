@@ -245,6 +245,16 @@ app.post('/api/productos', (req, res) => {
     const { negocio_id, nombre, descripcion, precio, foto } = req.body;
     console.log('Datos recibidos en POST /api/productos:', { negocio_id, nombre, descripcion, precio, foto });
 
+    if (!negocio_id || !nombre || precio == null) {
+        console.log('Faltan campos obligatorios para crear producto');
+        return res.status(400).json({ error: 'negocio_id, nombre y precio son requeridos' });
+    }
+
+    if (typeof precio !== 'number' || isNaN(precio) || precio <= 0) {
+        console.log('El precio debe ser un número válido mayor que 0');
+        return res.status(400).json({ error: 'El precio debe ser un número válido mayor que 0' });
+    }
+
     db.run('INSERT INTO productos (negocio_id, nombre, descripcion, precio, foto) VALUES (?, ?, ?, ?, ?)',
         [negocio_id, nombre, descripcion, precio, foto], (err) => {
             if (err) {
@@ -270,6 +280,16 @@ app.get('/api/productos/:negocioId', (req, res) => {
 app.put('/api/productos/:id', (req, res) => {
     const { nombre, descripcion, precio, foto } = req.body;
     console.log(`Solicitud PUT /api/productos/${req.params.id}:`, { nombre, descripcion, precio, foto });
+
+    if (!nombre || precio == null) {
+        console.log('Faltan campos obligatorios para actualizar producto');
+        return res.status(400).json({ error: 'nombre y precio son requeridos' });
+    }
+
+    if (typeof precio !== 'number' || isNaN(precio) || precio <= 0) {
+        console.log('El precio debe ser un número válido mayor que 0');
+        return res.status(400).json({ error: 'El precio debe ser un número válido mayor que 0' });
+    }
 
     db.run('UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, foto = ? WHERE id = ?',
         [nombre, descripcion, precio, foto, req.params.id], (err) => {

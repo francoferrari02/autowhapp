@@ -4,7 +4,7 @@ const qrcode = require('qrcode-terminal');
 const db = require('../db');
 
 const client = new Client();
-let negocioGlobal = null; // Variable global para almacenar el negocio identificado
+let negocioGlobal = null; // Variable global para almacenar el ID del negocio identificado
 
 client.on('qr', (qr) => {
   console.log('Escaneá este código QR con el número del negocio:');
@@ -41,15 +41,17 @@ client.on('authenticated', async (session) => {
     cleanNumero = clientNumber._serialized.replace('@c.us', '').replace(/\D/g, '');
   }
 
-  // Identificar el negocio una sola vez
-  negocioGlobal = await identificarNegocio(cleanNumero);
+  // Identificar el negocio una sola vez para obtener el ID
+  const negocio = await identificarNegocio(cleanNumero);
 
-  if (!negocioGlobal) {
+  if (!negocio) {
     console.error('⚠️ No se pudo identificar el negocio asociado al número del cliente. Deteniendo el proceso.');
     process.exit(1);
   }
 
-  console.log('Negocio identificado al iniciar:', JSON.stringify(negocioGlobal, null, 2));
+  // Guardar solo el ID del negocio en negocioGlobal
+  negocioGlobal = { id: negocio.id };
+  console.log('Negocio identificado al iniciar (ID):', negocioGlobal.id);
 });
 
 client.on('ready', () => {
@@ -61,7 +63,7 @@ client.on('message', async (msg) => {
   console.log(`📩 Mensaje recibido: "${msg.body}" del chat "${chat.name}"`);
 
   // Filtro de chat (personaliza según tus pruebas)
-  if (chat.name !== 'Prueba facultad') {
+  if (chat.name !== 'Prueba Autowhapp') {
     console.log(`🔕 Ignorando mensaje de otro chat: ${chat.name}`);
     return;
   }
@@ -70,19 +72,75 @@ client.on('message', async (msg) => {
   console.log('Es chat de grupo:', chat.isGroup);
   console.log('Autor del mensaje (msg.author):', msg.author);
 
-  // Usar el negocio identificado al iniciar
-  if (!negocioGlobal || typeof negocioGlobal.estado_bot === 'undefined') {
+  // Verificar que tenemos el ID del negocio
+  if (!negocioGlobal || !negocioGlobal.id) {
+    console.log('⚠️ Negocio no identificado');
+    await client.sendMessage(msg.from, 'Ocurrió un error, intentá de nuevo (no se identificó negocio)');
+    return;
+  }
+
+  // Consultar la información del negocio dinámicamente usando el negocioId
+  const negocioId = negocioGlobal.id;
+  const negocio = await identificarNegocioPorId(negocioId);
+
+  if (!negocio || typeof negocio.estado_bot === 'undefined') {
     console.log('⚠️ Negocio no identificado o estado_bot indefinido');
     await client.sendMessage(msg.from, 'Ocurrió un error, intentá de nuevo (no se identificó negocio)');
     return;
   }
 
   // 🚨 Si el bot está APAGADO, enviar mensaje default y abortar el flujo:
-  if (!negocioGlobal.estado_bot) {
+  if (!negocio.estado_bot) {
     console.log('🤖 Bot desactivado (negocio.estado_bot es false), enviando mensaje predeterminado');
     await client.sendMessage(msg.from, 'Disculpa, no estamos atendiendo en este momento.');
     return;
   }
+
+  // Consultar FAQs y productos dinámicamente usando el negocioId
+  // Obtener FAQs
+  const faqs = await new Promise((resolve) => {
+    db.all('SELECT * FROM faqs WHERE negocio_id = ?', [negocioId], (err, rows) => {
+      if (err) {
+        console.error('Error al obtener FAQs:', err);
+        resolve([]);
+      } else {
+        console.log(`FAQs obtenidas para negocio_id ${negocioId}:`, rows);
+        resolve(rows);
+      }
+    });
+  });
+
+  // Obtener productos
+  const productos = await new Promise((resolve) => {
+    db.all('SELECT * FROM productos WHERE negocio_id = ?', [negocioId], (err, rows) => {
+      if (err) {
+        console.error('Error al obtener productos:', err);
+        resolve([]);
+      } else {
+        console.log(`Productos obtenidos para negocio_id ${negocioId}:`, rows);
+        resolve(rows);
+      }
+    });
+  });
+
+  // Convertir las FAQs en una cadena de texto
+  const faqsTexto = faqs.length > 0
+    ? faqs.map(faq => `Pregunta: ${faq.pregunta} Respuesta: ${faq.respuesta}`).join('\n')
+    : 'No hay FAQs disponibles.';
+
+  // Convertir los productos en una cadena de texto
+  const productosTexto = productos.length > 0
+    ? productos.map(producto => `${producto.nombre}: ${producto.descripcion} - $${producto.precio}`).join('\n')
+    : 'No hay productos disponibles.';
+
+  // Construir el objeto negocio con los datos actualizados, incluyendo las cadenas de texto
+  const negocioActualizado = {
+    ...negocio,
+    faqs: faqs || [],
+    productos: productos || [],
+    faqs_texto: faqsTexto,
+    productos_texto: productosTexto
+  };
 
   // Si el bot está prendido, sigue flujo normal:
   const webhookUrl = 'https://17a3-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
@@ -90,7 +148,7 @@ client.on('message', async (msg) => {
   const payload = {
     mensaje: msg.body,
     numeroCliente: chat.isGroup ? msg.author : msg.from, // Usar msg.author para grupos, msg.from para chats individuales
-    negocio: negocioGlobal
+    negocio: negocioActualizado
   };
 
   try {
@@ -112,9 +170,9 @@ client.on('message', async (msg) => {
 
 client.initialize();
 
+// Función para identificar el negocio por número (usada al autenticar)
 function identificarNegocio(cleanNumero) {
   return new Promise((resolve, reject) => {
-    // Obtener información del negocio
     db.get(
       'SELECT * FROM negocios WHERE replace(replace(numero_telefono, "+", ""), "-", "") = ?',
       [cleanNumero],
@@ -133,81 +191,72 @@ function identificarNegocio(cleanNumero) {
 
         console.log('Negocio encontrado en DB:', negocio);
 
-        try {
-          // Obtener FAQs
-          const faqs = await new Promise((resolve) => {
-            db.all('SELECT * FROM faqs WHERE negocio_id = ?', [negocio.id], (err, rows) => {
-              if (err) {
-                console.error('Error al obtener FAQs:', err);
-                resolve([]);
-              } else {
-                resolve(rows);
-              }
-            });
-          });
+        resolve({
+          id: negocio.id,
+          nombre: negocio.nombre,
+          numero_telefono: negocio.numero_telefono,
+          grupo_id: negocio.grupo_id,
+          tipo_negocio: negocio.tipo_negocio,
+          localidad: negocio.localidad,
+          direccion: negocio.direccion,
+          horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
+          contexto: negocio.contexto || '',
+          estado_bot: negocio.estado_bot === 1,
+          modulo_pedidos: negocio.modulo_pedidos === 1
+        });
+      }
+    );
+  });
+}
 
-          // Obtener productos
-          const productos = await new Promise((resolve) => {
-            db.all('SELECT * FROM productos WHERE negocio_id = ?', [negocio.id], (err, rows) => {
-              if (err) {
-                console.error('Error al obtener productos:', err);
-                resolve([]);
-              } else {
-                resolve(rows);
-              }
-            });
-          });
-
-          // Obtener mensajes de pedidos
-          const mensajesPedidos = await new Promise((resolve) => {
-            db.all('SELECT * FROM mensajes_pedidos WHERE negocio_id = ?', [negocio.id], (err, rows) => {
-              if (err) {
-                console.error('Error al obtener mensajes de pedidos:', err);
-                resolve([]);
-              } else {
-                resolve(rows);
-              }
-            });
-          });
-
-          // Construir objeto completo del negocio
-          const negocioCompleto = {
-            id: negocio.id,
-            nombre: negocio.nombre,
-            numero_telefono: negocio.numero_telefono,
-            grupo_id: negocio.grupo_id,
-            tipo_negocio: negocio.tipo_negocio,
-            localidad: negocio.localidad,
-            direccion: negocio.direccion,
-            horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
-            contexto: negocio.contexto || '',
-            estado_bot: negocio.estado_bot === 1,
-            modulo_pedidos: negocio.modulo_pedidos === 1,
-            faqs: faqs || [],
-            productos: productos || [],
-            mensajes_pedidos: mensajesPedidos || []
-          };
-
-          resolve(negocioCompleto);
-        } catch (error) {
-          console.error('Error al obtener datos relacionados del negocio:', error);
-          resolve({
-            id: negocio.id,
-            nombre: negocio.nombre,
-            numero_telefono: negocio.numero_telefono,
-            grupo_id: negocio.grupo_id,
-            tipo_negocio: negocio.tipo_negocio,
-            localidad: negocio.localidad,
-            direccion: negocio.direccion,
-            horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
-            contexto: negocio.contexto || '',
-            estado_bot: negocio.estado_bot === 1,
-            modulo_pedidos: negocio.modulo_pedidos === 1,
-            faqs: [],
-            productos: [],
-            mensajes_pedidos: []
-          });
+// Nueva función para identificar el negocio por ID (usada en cada mensaje)
+function identificarNegocioPorId(negocioId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      'SELECT * FROM negocios WHERE id = ?',
+      [negocioId],
+      async (err, negocio) => {
+        if (err) {
+          console.error('Error al buscar negocio por ID:', err);
+          resolve(null);
+          return;
         }
+
+        if (!negocio) {
+          console.warn(`No se encontró negocio con ID: ${negocioId}`);
+          resolve(null);
+          return;
+        }
+
+        console.log('Negocio encontrado en DB por ID:', negocio);
+
+        // Obtener mensajes de pedidos
+        const mensajesPedidos = await new Promise((resolve) => {
+          db.all('SELECT * FROM mensajes_pedidos WHERE negocio_id = ?', [negocio.id], (err, rows) => {
+            if (err) {
+              console.error('Error al obtener mensajes de pedidos:', err);
+              resolve([]);
+            } else {
+              console.log(`Mensajes de pedidos obtenidos para negocio_id ${negocio.id}:`, rows);
+              resolve(rows);
+            }
+          });
+        });
+
+        resolve({
+          id: negocio.id,
+          nombre: negocio.nombre,
+          numero_telefono: negocio.numero_telefono,
+          grupo_id: negocio.grupo_id,
+          tipo_negocio: negocio.tipo_negocio,
+          localidad: negocio.localidad,
+          direccion: negocio.direccion,
+          horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
+          contexto: negocio.contexto || '',
+          estado_bot: negocio.estado_bot === 1,
+          modulo_pedidos: negocio.modulo_pedidos === 1,
+          mensajes_pedidos: mensajesPedidos || []
+        });
       }
     );
   });
