@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Business, FAQ } from '../types';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
@@ -26,6 +27,14 @@ const businessTypes = [
   { value: 'personalizado', label: 'Personalizado' },
 ];
 
+// Para FAQs
+type FaqWithId = {
+  id?: number;
+  question: string;
+  answer: string;
+  isNew?: boolean;
+};
+
 // Componente para input con label e icono
 const LabeledInput: React.FC<{
   label: string;
@@ -51,113 +60,191 @@ const LabeledInput: React.FC<{
   </div>
 );
 
-const MainConfig: React.FC = () => {
-  const mockBusinessData: Business = {
-    id: 1,
-    name: 'La Pizzería Italiana',
-    type: 'restaurante',
-    location: 'Buenos Aires',
-    address: 'Av. Corrientes 123',
-    hours: {
-      Lunes: { open: '12:00', close: '23:00' },
-      Martes: { open: '12:00', close: '23:00' },
-      Miércoles: { open: '12:00', close: '23:00' },
-      Jueves: { open: '12:00', close: '23:00' },
-      Viernes: { open: '12:00', close: '23:00' },
-      Sábado: { open: '12:00', close: '23:00' },
-      Domingo: { open: '12:00', close: '23:00' },
-    },
-    isActive: true,
-  };
-
-  const mockContext = 'Eres el contestador de la pizzería Bongusto en Buenos Aires...';
-  const mockFaqs: FAQ[] = [
-    { question: '¿Tienen delivery?', answer: 'Sí, hacemos envíos a domicilio.' },
-    { question: '¿Cuál es el horario?', answer: 'Abrimos de 12:00 a 23:00 todos los días.' },
-  ];
-
-  const [business, setBusiness] = useState<Business>(mockBusinessData);
-  const [context, setContext] = useState<string>(mockContext);
-  const [faqs, setFaqs] = useState<FAQ[]>(mockFaqs);
+const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [context, setContext] = useState<string>('');
+  const [faqs, setFaqs] = useState<FaqWithId[]>([]);
   const [message, setMessage] = useState<string>('');
+  const [customType, setCustomType] = useState<string>('');
 
-  // Estado extra para valor personalizado en tipo negocio
-  const [customType, setCustomType] = useState<string>(
-    businessTypes.find(bt => bt.value === business.type) ? '' : business.type
-  );
+  useEffect(() => {
+    setError(null);
+    console.log('Cargando negocio con ID:', negocioId); // Log para depurar
+    axios.get(`http://localhost:3000/api/negocio/${negocioId}`)
+      .then(response => {
+        const data = response.data as {
+          id: number;
+          nombre: string;
+          tipo_negocio: string;
+          localidad: string;
+          direccion: string;
+          horarios?: string;
+          estado_bot: boolean;
+          contexto?: string;
+        };
+        const defaultHours = {
+          Lunes: { open: '09:00', close: '18:00' },
+          Martes: { open: '09:00', close: '18:00' },
+          Miércoles: { open: '09:00', close: '18:00' },
+          Jueves: { open: '09:00', close: '18:00' },
+          Viernes: { open: '09:00', close: '18:00' },
+          Sábado: { open: '09:00', close: '18:00' },
+          Domingo: { open: '09:00', close: '18:00' },
+        };
+        console.log('Datos del negocio cargados:', data); // Log para depurar
+        setBusiness({
+          id: data.id,
+          name: data.nombre,
+          type: data.tipo_negocio,
+          location: data.localidad,
+          address: data.direccion,
+          hours: data.horarios ? JSON.parse(data.horarios) : defaultHours,
+          isActive: data.estado_bot,
+        });
+        setContext(data.contexto || '');
+        setCustomType(businessTypes.find(bt => bt.value === data.tipo_negocio) ? '' : data.tipo_negocio);
+      })
+      .catch(error => {
+        console.error('Error fetching business data:', error);
+        if (error.response?.status === 404) {
+          setError('Negocio no encontrado');
+        } else {
+          setError('Error al cargar la configuración');
+        }
+        setBusiness(null); // Asegurarse de que business sea null si hay error
+      });
+
+    axios.get(`http://localhost:3000/api/faqs/${negocioId}`)
+      .then(response => {
+        const mapped = (response.data as { id: number; pregunta: string; respuesta: string }[]).map((f) => ({
+          id: f.id,
+          question: f.pregunta,
+          answer: f.respuesta,
+        }));
+        setFaqs(mapped);
+      })
+      .catch(error => {
+        console.error('Error fetching FAQs:', error);
+        setFaqs([]);
+      });
+  }, [negocioId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setBusiness({ ...business, [name]: value });
+    if (business) setBusiness({ ...business, [name]: value });
   };
 
-  // Modifica para mostrar input personalizado si se elige esa opción
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    // Si elige personalizado limpia customType para que el usuario escriba ahí
-    if (value === 'personalizado') {
-      setCustomType('');
-      setBusiness({ ...business, type: 'personalizado' });
-    } else {
-      setCustomType('');
-      setBusiness({ ...business, type: value });
+    if (business) {
+      if (value === 'personalizado') {
+        setCustomType('');
+        setBusiness({ ...business, type: 'personalizado' });
+      } else {
+        setCustomType('');
+        setBusiness({ ...business, type: value });
+      }
     }
   };
 
-  // Cuando el usuario escribe el tipo personalizado también actualizamos el business.type
   const handleCustomTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCustomType(value);
-    setBusiness({ ...business, type: value });
+    if (business) setBusiness({ ...business, type: value });
   };
 
   const handleHoursChange = (day: string, field: 'open' | 'close', value: string) => {
-    setBusiness({
-      ...business,
-      hours: {
-        ...business.hours,
-        [day]: {
-          ...business.hours[day],
-          [field]: value,
+    if (business) {
+      setBusiness({
+        ...business,
+        hours: {
+          ...business.hours,
+          [day]: {
+            ...business.hours[day],
+            [field]: value,
+          },
         },
-      },
-    });
+      });
+    }
   };
 
+  // --- FAQ CRUD ---
   const handleFaqChange = (index: number, field: 'question' | 'answer', value: string) => {
-    const updatedFaqs = [...faqs];
-    updatedFaqs[index] = { ...updatedFaqs[index], [field]: value };
-    setFaqs(updatedFaqs);
+    setFaqs(f => f.map((faq, i) => i === index ? { ...faq, [field]: value } : faq));
   };
 
   const addFaq = () => {
-    setFaqs([...faqs, { question: '', answer: '' }]);
+    setFaqs([...faqs, { question: '', answer: '', isNew: true }]);
   };
 
   const removeFaq = (index: number) => {
-    setFaqs(faqs.filter((_, i) => i !== index));
+    const toDelete = faqs[index];
+    if (toDelete.id) {
+      axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`)
+        .then(() => {
+          setFaqs((prev) => prev.filter((_, i) => i !== index));
+        })
+        .catch(() => setMessage('Error al eliminar FAQ'));
+    } else {
+      setFaqs((prev) => prev.filter((_, i) => i !== index));
+    }
   };
 
-  const handleSave = () => {
-    setMessage('Configuración guardada con éxito (simulado)');
-    const prompt = `Eres el asistente de ${business.name}, un ${business.type} ubicado en ${business.location}, ${business.address}. Estamos abiertos ${Object.entries(business.hours)
-      .map(([day, times]) => `${day} de ${times.open} a ${times.close}`)
-      .join(', ')}. Responde amablemente a las consultas de los clientes. Contexto adicional: ${context}. FAQs: ${faqs
-      .map((faq) => `Pregunta: ${faq.question}, Respuesta: ${faq.answer}`)
-      .join('; ')}`;
-    console.log('Simulando envío a n8n:', {
-      negocioId: business.id,
-      contexto: prompt,
-    });
+  const handleSave = async () => {
+    if (!business) return;
+    try {
+      // Guarda config de negocio
+      const updatedBusiness = {
+        nombre: business.name,
+        tipo_negocio: business.type,
+        localidad: business.location,
+        direccion: business.address,
+        horarios: JSON.stringify(business.hours),
+        contexto: context,
+      };
+      await axios.put(`http://localhost:3000/api/negocio/${negocioId}`, updatedBusiness);
+
+      // CRUD FAQs
+      for (const faq of faqs) {
+        if (!faq.question.trim() && !faq.answer.trim()) continue;
+        if (!faq.id) {
+          await axios.post('http://localhost:3000/api/faqs', {
+            negocioId,
+            pregunta: faq.question,
+            respuesta: faq.answer,
+          });
+        } else {
+          await axios.put(`http://localhost:3000/api/faqs/${faq.id}`, {
+            pregunta: faq.question,
+            respuesta: faq.answer,
+          });
+        }
+      }
+      // Actualiza lista a lo que hay en la base
+      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
+      setFaqs(res.data.map((f) => ({
+        id: f.id,
+        question: f.pregunta,
+        answer: f.respuesta,
+      })));
+
+      setMessage('Configuración guardada con éxito');
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      setMessage('Error al guardar la configuración');
+    }
   };
 
   const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
+  if (!business) return <div className="text-gray-500 font-poppins">Cargando datos del negocio...</div>;
+
   return (
     <div
-    className="bg-white rounded-lg p-6 max-w-[1000px] mx-auto"
-    style={{ boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}
-  >
+      className="bg-white rounded-lg p-6 max-w-[1000px] mx-auto"
+      style={{ boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}
+    >
       <h2 className="text-2xl font-bold text-black mb-6 font-poppins">Información de Negocio</h2>
 
       <div className="space-y-5">

@@ -1,16 +1,13 @@
 // components/PedidosStatus.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, Typography, Switch } from '@mui/material';
 
-const PedidosStatus: React.FC = () => {
-  const [isActive, setIsActive] = useState<boolean>(true);
-  const [message, setMessage] = useState<string>('');
-
+const PedidosStatus: React.FC<{
+  active: boolean;
+  onToggle: (newState: boolean) => void;
+}> = ({ active, onToggle }) => {
   const handleToggle = () => {
-    const newStatus = !isActive;
-    setIsActive(newStatus);
-    setMessage(`Módulo de Pedidos ${newStatus ? 'activado' : 'desactivado'}`);
-    console.log('Simulando envío a n8n:', { pedidosActivo: newStatus });
+    onToggle(!active);
   };
 
   return (
@@ -32,18 +29,13 @@ const PedidosStatus: React.FC = () => {
             variant="h6"
             sx={{ fontFamily: 'Poppins', fontWeight: 'bold', minWidth: 130, pr: 3 }}
           >
-           Estado Pedidos
+            Estado Pedidos
           </Typography>
-          <Switch checked={isActive} onChange={handleToggle} />
+          <Switch checked={active} onChange={handleToggle} />
           <Typography sx={{ fontFamily: 'Poppins', ml: 1 }}>
-            {isActive ? 'Encendido' : 'Apagado'}
+            {active ? 'Encendido' : 'Apagado'}
           </Typography>
         </div>
-        {message && (
-          <Typography color={message.includes('desactivado') ? 'error' : 'success.main'} mt={1} fontSize="0.875rem">
-            {message}
-          </Typography>
-        )}
       </CardContent>
     </Card>
   );

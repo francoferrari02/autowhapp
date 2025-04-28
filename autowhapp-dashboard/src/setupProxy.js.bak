@@ -1,0 +1,18 @@
+const { createProxyMiddleware } = require('http-proxy-middleware');
+
+module.exports = function (app) {
+  console.log('Configurando proxy para /api...'); // Log para confirmar que el proxy se configura
+  app.use(
+    '/api',
+    createProxyMiddleware({
+      target: 'http://localhost:3000', // Puerto donde corre tu backend
+      changeOrigin: true,
+      onProxyReq: (proxyReq, req, res) => {
+        console.log(`Proxy: Enviando solicitud ${req.method} ${req.url} al backend`); // Log para cada solicitud
+      },
+      onError: (err, req, res) => {
+        console.error('Proxy: Error al conectar con el backend:', err); // Log para errores
+      },
+    })
+  );
+};

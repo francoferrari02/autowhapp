@@ -16,8 +16,7 @@ AutoWhapp es un proyecto que implementa un chatbot automatizado para WhatsApp, c
 ## Instalación
 ### Frontend
 - Ve a `autowhapp-dashboard/`
-- Instala dependencias: `npm install`
-- Corre: `npm start`
+- Corre: `yarn start`
 
 ### Backend
 - Ve a `autowhapp-backend/`
