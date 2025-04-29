@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, Typography, Button, TextField, Box, Modal, Switch, FormControlLabel } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { Order } from '../types';
+import axios from 'axios';
+import { useNegocio } from '../NegocioContext';
 
 const BotStatusPedido: React.FC<{ active: boolean; onToggle: () => void }> = ({ active, onToggle }) => (
   <FormControlLabel
@@ -14,12 +16,9 @@ const BotStatusPedido: React.FC<{ active: boolean; onToggle: () => void }> = ({ 
 );
 
 const Orders: React.FC = () => {
-  const mockOrders: Order[] = [
-    { id: 1, time: '14:30', status: 'Recibido', client: 'Juan Pérez', phone: '+541123456789', items: 'Pizza Margherita', total: '$1500' },
-    { id: 2, time: '15:00', status: 'Preparando', client: 'Ana Gómez', phone: '+541198765432', items: 'Coca-Cola', total: '$500' },
-  ];
+  const { negocioId } = useNegocio(); // Obtener el negocioId del contexto
 
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<'Todos' | 'Recibidos' | 'Enviados'>('Todos');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -32,16 +31,73 @@ const Orders: React.FC = () => {
   const [openModal, setOpenModal] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [message, setMessage] = useState<string>('');
-  const [moduleActive, setModuleActive] = useState<boolean>(true);
 
+  // Cargar pedidos y mensajes al montar el componente
+  useEffect(() => {
+    if (negocioId !== null) {
+      // Cargar pedidos
+      axios
+        .get(`http://localhost:3000/api/pedidos/${negocioId}`)
+        .then((res) => {
+          const pedidos: Order[] = (res.data as any[]).map((pedido: any) => ({
+            id: pedido.id,
+            time: pedido.created_at || new Date().toLocaleTimeString(), // Usamos la fecha actual si no hay created_at
+            status: pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1), // Capitalizamos el estado
+            client: 'Desconocido', // No está en la base de datos
+            phone: pedido.numero_cliente,
+            items: pedido.producto,
+            total: 'N/A', // No está en la base de datos
+            cantidad: pedido.cantidad,
+          }));
+          setOrders(pedidos);
+        })
+        .catch((err) => {
+          console.error('Error al cargar pedidos:', err);
+          setMessage('Error al cargar pedidos');
+        });
+
+      // Cargar mensajes personalizados
+      axios
+        .get(`http://localhost:3000/api/mensajes-pedidos/${negocioId}`)
+        .then((res) => {
+          const mensajesGuardados = (res.data as { tipo: string; mensaje: string }[]).reduce((acc: any, msg: any) => {
+            acc[msg.tipo] = msg.mensaje;
+            return acc;
+          }, {});
+          setMessages((prev) => ({
+            ...prev,
+            ...mensajesGuardados,
+          }));
+        })
+        .catch((err) => {
+          console.error('Error al cargar mensajes de pedidos:', err);
+          setMessage('Error al cargar mensajes de pedidos');
+        });
+    }
+  }, [negocioId]);
 
   const handleMessageChange = (key: 'recibido' | 'preparando' | 'enviado', value: string) => {
-    setMessages(prev => ({ ...prev, [key]: value }));
+    setMessages((prev) => ({ ...prev, [key]: value }));
   };
 
   const saveMessages = () => {
-    setMessage('Mensajes guardados con éxito (simulado)');
-    console.log('Mensajes guardados:', messages);
+    if (negocioId === null) {
+      setMessage('Error: Negocio no identificado');
+      return;
+    }
+
+    axios
+      .post('http://localhost:3000/api/mensajes-pedidos', {
+        negocio_id: negocioId,
+        mensajes: messages,
+      })
+      .then(() => {
+        setMessage('Mensajes guardados con éxito');
+      })
+      .catch((err) => {
+        console.error('Error al guardar mensajes:', err);
+        setMessage('Error al guardar mensajes');
+      });
   };
 
   const handleOpenModal = (order: Order) => {
@@ -55,51 +111,105 @@ const Orders: React.FC = () => {
   };
 
   const updateStatus = (orderId: number, newStatus: 'Recibido' | 'Preparando' | 'Enviado') => {
-    setOrders(orders.map(order => order.id === orderId ? { ...order, status: newStatus } : order));
-    setMessage(`Estado del pedido ${orderId} actualizado a ${newStatus} (simulado)`);
-    const msgMap = {
-      'Recibido': messages.recibido,
-      'Preparando': messages.preparando,
-      'Enviado': messages.enviado,
-    };
-    console.log('Simulando envío a n8n:', {
-      pedidoId: orderId,
-      nuevoEstado: newStatus,
-      mensaje: msgMap[newStatus] || 'Tu pedido ha sido actualizado.',
-    });
+    if (negocioId === null) {
+      setMessage('Error: Negocio no identificado');
+      return;
+    }
+
+    // Actualizar el estado del pedido en el backend
+    axios
+      .put(`http://localhost:3000/api/pedido/${orderId}/estado`, {
+        estado: newStatus.toLowerCase(),
+      })
+      .then(() => {
+        // Actualizar el estado localmente
+        setOrders((prevOrders) =>
+          prevOrders.map((order) =>
+            order.id === orderId ? { ...order, status: newStatus } : order
+          )
+        );
+        setMessage(`Estado del pedido ${orderId} actualizado a ${newStatus}`);
+      })
+      .catch((err) => {
+        console.error('Error al actualizar estado del pedido:', err);
+        setMessage('Error al actualizar estado del pedido');
+      });
   };
 
   const addNewOrder = () => {
-    const newOrder: Order = {
-      id: orders.length + 1,
-      time: new Date().toLocaleTimeString(),
-      status: 'Recibido',
-      client: 'Cliente Nuevo',
-      phone: '+541123456789',
-      items: 'Producto de prueba',
-      total: '$1000',
+    if (negocioId === null) {
+      setMessage('Error: Negocio no identificado');
+      return;
+    }
+
+    const newOrder = {
+      negocioId,
+      numeroCliente: '+541123456789', // Simulado
+      producto: 'Producto de prueba',
+      cantidad: 1,
     };
-    setOrders([newOrder, ...orders]);
-    setMessage('Pedido añadido con éxito (simulado)');
+
+    axios
+      .post('http://localhost:3000/api/registrar-pedido', newOrder)
+      .then((res) => {
+        const createdOrder: Order = {
+          id: orders.length + 1, // Esto debería venir del backend, pero lo simulamos por ahora
+          time: new Date().toLocaleTimeString(),
+          status: 'Recibido',
+          client: 'Desconocido',
+          phone: newOrder.numeroCliente,
+          items: newOrder.producto,
+          total: 'N/A',
+          cantidad: newOrder.cantidad,
+        };
+        setOrders([createdOrder, ...orders]);
+        setMessage('Pedido añadido con éxito');
+      })
+      .catch((err) => {
+        console.error('Error al registrar pedido:', err);
+        setMessage('Error al registrar pedido');
+      });
   };
 
   const refreshOrders = () => {
-    setOrders(mockOrders);
-    setMessage('Pedidos actualizados (simulado)');
+    if (negocioId === null) {
+      setMessage('Error: Negocio no identificado');
+      return;
+    }
+
+    axios
+      .get(`http://localhost:3000/api/pedidos/${negocioId}`)
+      .then((res) => {
+        const pedidos: Order[] = (res.data as any[]).map((pedido: any) => ({
+          id: pedido.id,
+          time: pedido.created_at || new Date().toLocaleTimeString(),
+          status: pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1),
+          client: 'Desconocido',
+          phone: pedido.numero_cliente,
+          items: pedido.producto,
+          total: 'N/A',
+          cantidad: pedido.cantidad,
+        }));
+        setOrders(pedidos);
+        setMessage('Pedidos actualizados');
+      })
+      .catch((err) => {
+        console.error('Error al actualizar pedidos:', err);
+        setMessage('Error al actualizar pedidos');
+      });
   };
 
   const filteredOrders = orders
-    .filter(order => {
+    .filter((order) => {
       if (filter === 'Todos') return true;
       if (filter === 'Recibidos') return order.status === 'Recibido';
       if (filter === 'Enviados') return order.status === 'Enviado';
       return true;
     })
-    .filter(order => order.client.toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter((order) => (order.phone || '').toLowerCase().includes(searchTerm.toLowerCase())); // Filtramos por número de teléfono
 
   return (
     <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
-      
       {/* Mensajes dentro Card */}
       <Card sx={{ p: 3, mb: 4, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: 2 }}>
         <TextField
@@ -109,7 +219,7 @@ const Orders: React.FC = () => {
           rows={2}
           sx={{ mb: 2 }}
           value={messages.recibido}
-          onChange={e => handleMessageChange('recibido', e.target.value)}
+          onChange={(e) => handleMessageChange('recibido', e.target.value)}
         />
         <TextField
           label="Mensaje Pedido Preparando"
@@ -118,7 +228,7 @@ const Orders: React.FC = () => {
           rows={2}
           sx={{ mb: 2 }}
           value={messages.preparando}
-          onChange={e => handleMessageChange('preparando', e.target.value)}
+          onChange={(e) => handleMessageChange('preparando', e.target.value)}
         />
         <TextField
           label="Mensaje Pedido Enviado"
@@ -127,7 +237,7 @@ const Orders: React.FC = () => {
           rows={2}
           sx={{ mb: 3 }}
           value={messages.enviado}
-          onChange={e => handleMessageChange('enviado', e.target.value)}
+          onChange={(e) => handleMessageChange('enviado', e.target.value)}
         />
         <Button
           variant="contained"
@@ -141,15 +251,15 @@ const Orders: React.FC = () => {
       {/* Buscador y filtros en box blanco */}
       <Box sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: 2, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <TextField
-          placeholder="Buscar pedidos..."
+          placeholder="Buscar pedidos por teléfono..."
           variant="outlined"
           InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1 }} /> }}
           sx={{ width: 300 }}
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
         <Box>
-          {['Todos', 'Recibidos', 'Enviados'].map(f => (
+          {['Todos', 'Recibidos', 'Enviados'].map((f) => (
             <Button
               key={f}
               variant={filter === f ? 'contained' : 'outlined'}
@@ -158,7 +268,7 @@ const Orders: React.FC = () => {
                 backgroundColor: filter === f ? '#1E3A8A' : 'transparent',
                 color: filter === f ? '#FFFFFF' : '#1E3A8A',
                 '&:hover': { backgroundColor: '#153E6F', color: '#FFFFFF' },
-                borderRadius: 2
+                borderRadius: 2,
               }}
               onClick={() => setFilter(f as any)}
             >
@@ -191,9 +301,9 @@ const Orders: React.FC = () => {
             const [h, m] = t.split(':').map(Number);
             return h * 60 + m;
           };
-          return toMinutes(b.time) - toMinutes(a.time);
+          return toMinutes(b.time || '00:00') - toMinutes(a.time || '00:00');
         })
-        .map(order => (
+        .map((order) => (
           <Card key={order.id} sx={{ boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: 2, mb: 2, p: 2 }}>
             <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Box>
@@ -201,22 +311,24 @@ const Orders: React.FC = () => {
                 <Typography color="text.secondary">{order.time}</Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {['Recibido', 'Preparando', 'Enviado'].map(status => (
+                {['Recibido', 'Preparando', 'Enviado'].map((status) => (
                   <Button
                     key={status}
                     onClick={() => updateStatus(order.id, status as any)}
                     sx={{
                       backgroundColor: order.status === status
-                        ? status === 'Recibido' ? '#9CA3AF'
-                        : status === 'Preparando' ? '#F59E0B'
-                        : '#34C759'
+                        ? status === 'Recibido'
+                          ? '#9CA3AF'
+                          : status === 'Preparando'
+                          ? '#F59E0B'
+                          : '#34C759'
                         : '#E5E7EB',
                       color: order.status === status ? '#FFFFFF' : '#666666',
                       borderRadius: 2,
                       textTransform: 'none',
                       minWidth: 90,
                       fontWeight: order.status === status ? '600' : 'normal',
-                      fontSize: '0.875rem'
+                      fontSize: '0.875rem',
                     }}
                   >
                     {status}
@@ -232,31 +344,42 @@ const Orders: React.FC = () => {
               </Box>
             </CardContent>
           </Card>
-      ))}
+        ))}
 
       <Modal open={openModal} onClose={handleCloseModal}>
-        <Box sx={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 400,
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          borderRadius: 2
-        }}>
-          <Typography variant="h6" fontWeight="bold" mb={2}>Detalles del Pedido</Typography>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: 'background.paper',
+            boxShadow: 24,
+            p: 4,
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" fontWeight="bold" mb={2}>
+            Detalles del Pedido
+          </Typography>
           {selectedOrder && (
             <>
               <Typography>Cliente: {selectedOrder.client}</Typography>
               <Typography>Teléfono: {selectedOrder.phone}</Typography>
               <Typography>Productos: {selectedOrder.items}</Typography>
+              <Typography>Cantidad: {selectedOrder.cantidad}</Typography>
               <Typography>Total: {selectedOrder.total}</Typography>
             </>
           )}
         </Box>
       </Modal>
 
-      {message && <Typography color={message.includes('Error') ? 'error' : 'success.main'} mt={2}>{message}</Typography>}
+      {message && (
+        <Typography color={message.includes('Error') ? 'error' : 'success.main'} mt={2}>
+          {message}
+        </Typography>
+      )}
     </Box>
   );
 };

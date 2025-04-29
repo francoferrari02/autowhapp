@@ -97,7 +97,6 @@ client.on('message', async (msg) => {
   }
 
   // Consultar FAQs y productos dinámicamente usando el negocioId
-  // Obtener FAQs
   const faqs = await new Promise((resolve) => {
     db.all('SELECT * FROM faqs WHERE negocio_id = ?', [negocioId], (err, rows) => {
       if (err) {
@@ -110,7 +109,6 @@ client.on('message', async (msg) => {
     });
   });
 
-  // Obtener productos
   const productos = await new Promise((resolve) => {
     db.all('SELECT * FROM productos WHERE negocio_id = ?', [negocioId], (err, rows) => {
       if (err) {
@@ -123,17 +121,14 @@ client.on('message', async (msg) => {
     });
   });
 
-  // Convertir las FAQs en una cadena de texto
   const faqsTexto = faqs.length > 0
     ? faqs.map(faq => `Pregunta: ${faq.pregunta} Respuesta: ${faq.respuesta}`).join('\n')
     : 'No hay FAQs disponibles.';
 
-  // Convertir los productos en una cadena de texto
   const productosTexto = productos.length > 0
     ? productos.map(producto => `${producto.nombre}: ${producto.descripcion} - $${producto.precio}`).join('\n')
     : 'No hay productos disponibles.';
 
-  // Construir el objeto negocio con los datos actualizados, incluyendo las cadenas de texto
   const negocioActualizado = {
     ...negocio,
     faqs: faqs || [],
@@ -142,12 +137,11 @@ client.on('message', async (msg) => {
     productos_texto: productosTexto
   };
 
-  // Si el bot está prendido, sigue flujo normal:
-  const webhookUrl = 'https://17a3-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
+  const webhookUrl = 'https://c73f-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
 
   const payload = {
     mensaje: msg.body,
-    numeroCliente: chat.isGroup ? msg.author : msg.from, // Usar msg.author para grupos, msg.from para chats individuales
+    numeroCliente: chat.isGroup ? msg.author : msg.from,
     negocio: negocioActualizado
   };
 
@@ -155,9 +149,29 @@ client.on('message', async (msg) => {
     console.log('📤 Enviando a n8n:', JSON.stringify(payload, null, 2));
     const res = await axios.post(webhookUrl, payload);
     const respuesta = res.data;
+
     if (respuesta) {
-      await client.sendMessage(msg.from, respuesta);
-      console.log('📨 Respuesta enviada al cliente:', respuesta);
+      // Verificar si la respuesta contiene un pedido
+      if (respuesta.pedido) {
+        const pedido = respuesta.pedido;
+        console.log('📦 Pedido detectado, registrando en el backend:', pedido);
+
+        // Registrar el pedido en el backend
+        try {
+          const registrarRes = await axios.post('http://localhost:3000/api/registrar-pedido', pedido);
+          console.log('✅ Pedido registrado con éxito:', registrarRes.data);
+        } catch (err) {
+          console.error('❌ Error al registrar el pedido en el backend:', err.response?.data || err.message);
+          await client.sendMessage(msg.from, 'Ocurrió un error al registrar tu pedido, intentá de nuevo.');
+          return;
+        }
+      } else {
+        console.log('📝 Respuesta normal, no se detectó pedido:', respuesta);
+      }
+
+      // Enviar el mensaje al cliente de WhatsApp
+      await client.sendMessage(msg.from, respuesta.message);
+      console.log('📨 Respuesta enviada al cliente:', respuesta.message);
     } else {
       await client.sendMessage(msg.from, '⚠️ No recibí respuesta del servidor.');
       console.log('⚠️ No se recibió respuesta del servidor');

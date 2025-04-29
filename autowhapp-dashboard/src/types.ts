@@ -29,6 +29,7 @@ export interface Order {
   phone: string;
   items: string;
   total: string;
+  cantidad: number;
 }
 
 export interface AnalyticsData {

@@ -383,6 +383,6 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../autowhapp-dashboard/build', 'index.html'));
 });
 
-app.listen(3000, () => {
+app.listen(3000, '0.0.0.0', () => {
     console.log('Backend corriendo en puerto 3000');
 });
