@@ -3,15 +3,14 @@ import { Box } from '@mui/material';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import Orders from '../components/Orders';
-import PedidosStatus from '../components/PedidosStatus';
+import ModuleStatus from '../components/ModuleStatus'; // Updated import
 import axios from 'axios';
-import { useNegocio } from '../NegocioContext'; // Importa el hook del contexto
+import { useNegocio } from '../NegocioContext';
 
 const OrdersPage: React.FC = () => {
-  const { negocioId } = useNegocio(); // Usa el negocioId del contexto
+  const { negocioId } = useNegocio();
   const [moduloPedidos, setModuloPedidos] = useState<boolean>(false);
 
-  // Cuando cambia el negocio, busca el estado real
   useEffect(() => {
     if (negocioId !== null) {
       axios
@@ -42,13 +41,13 @@ const OrdersPage: React.FC = () => {
       <Box display="flex">
         <Sidebar selected="orders" />
         <Box flexGrow={1} sx={{ padding: 3 }}>
-          {/* Título + PedidosStatus */}
           <Box display="flex" justifyContent="space-between" alignItems="start" mb={4}>
             <h2 className="text-2xl font-poppins font-bold text-white mt-2">
               Configuración de Pedidos
             </h2>
             <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', maxWidth: '480px' }}>
-              <PedidosStatus
+              <ModuleStatus
+                moduleName="Pedidos"
                 active={moduloPedidos}
                 onToggle={handleTogglePedidos}
               />

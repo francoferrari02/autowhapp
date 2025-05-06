@@ -1,12 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import {
- ChatBubbleBottomCenterTextIcon,
+  ChatBubbleBottomCenterTextIcon,
   ShoppingCartIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  CalendarIcon,
+  BellIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
-  selected: 'config' | 'orders' | 'analytics';
+  selected: 'config' | 'orders' | 'analytics' | 'reservations' | 'reminders';
 }
 
 const NAV_ITEMS = [
@@ -27,6 +29,18 @@ const NAV_ITEMS = [
     label: 'Analíticas',
     icon: ChartBarIcon,
     path: '/analytics',
+  },
+  {
+    id: 'reservations',
+    label: 'Reservas',
+    icon: CalendarIcon,
+    path: '/reservations',
+  },
+  {
+    id: 'reminders',
+    label: 'Recordatorios',
+    icon: BellIcon,
+    path: '/reminders',
   }
 ];
 
@@ -42,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
             <button
               key={id}
               onClick={() => navigate(path)}
-              className={`relative flex items-center gap-3 px-4 py-5 font-poppins transition-colors group
+              className={`relative flex items-center gap-3 px-4 py-5 font-poppins group
                 w-[calc(100%+16px)] -mr-4
                 ${isActive
                   ? 'bg-blue-600 text-white font-semibold rounded-l-xl rounded-r-none'
@@ -57,15 +71,10 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
                         -2px 2px 8px 0 rgba(0,0,0,0.10)
                       `
                     }
-                  : { 
-                      // Solo sombra arriba/izquierda/abajo, no a la derecha
-                      //boxShadow: '-2px 2px 8px 0px rgba(0,0,0,0.90)'
-                    }
+                  : {}
               }
             >
-              <Icon className={`h-6 w-6 transition-colors ${
-                isActive ? 'text-white' : 'text-blue-200'
-              }`} />
+              <Icon className="h-6 w-6 text-inherit" style={{ transition: 'none', transform: 'none' }} />
               <span className={`text-lg ${isActive ? 'text-white' : 'text-blue-100'}`}>
                 {label}
               </span>
