@@ -137,7 +137,7 @@ client.on('message', async (msg) => {
     productos_texto: productosTexto
   };
 
-  const webhookUrl = 'https://c73f-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
+  const webhookUrl = 'https://e109-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
 
   const payload = {
     mensaje: msg.body,
@@ -150,31 +150,22 @@ client.on('message', async (msg) => {
     const res = await axios.post(webhookUrl, payload);
     const respuesta = res.data;
 
-    if (respuesta) {
-      // Verificar si la respuesta contiene un pedido
-      if (respuesta.pedido) {
-        const pedido = respuesta.pedido;
-        console.log('📦 Pedido detectado, registrando en el backend:', pedido);
+    console.log('Datos recibidos desde n8n:', respuesta); // Verificación de los datos recibidos
 
-        // Registrar el pedido en el backend
-        try {
-          const registrarRes = await axios.post('http://localhost:3000/api/registrar-pedido', pedido);
-          console.log('✅ Pedido registrado con éxito:', registrarRes.data);
-        } catch (err) {
-          console.error('❌ Error al registrar el pedido en el backend:', err.response?.data || err.message);
-          await client.sendMessage(msg.from, 'Ocurrió un error al registrar tu pedido, intentá de nuevo.');
-          return;
-        }
+    // Verificamos si respuesta es un string directamente
+    if (typeof respuesta === 'string') {
+      const mensajeParaEnviar = respuesta.trim();
+      
+      if (mensajeParaEnviar) {
+        await client.sendMessage(msg.from, mensajeParaEnviar);
+        console.log('📨 Respuesta enviada al cliente:', mensajeParaEnviar);
       } else {
-        console.log('📝 Respuesta normal, no se detectó pedido:', respuesta);
+        await client.sendMessage(msg.from, '⚠️ No se pudo generar una respuesta válida.');
+        console.log('⚠️ No se encontró un mensaje válido para enviar');
       }
-
-      // Enviar el mensaje al cliente de WhatsApp
-      await client.sendMessage(msg.from, respuesta.message);
-      console.log('📨 Respuesta enviada al cliente:', respuesta.message);
     } else {
-      await client.sendMessage(msg.from, '⚠️ No recibí respuesta del servidor.');
-      console.log('⚠️ No se recibió respuesta del servidor');
+      await client.sendMessage(msg.from, '❌ Error en la respuesta del servidor.');
+      console.log('❌ Respuesta del servidor no válida');
     }
   } catch (err) {
     console.error('❌ Error al enviar a n8n:', err.response?.data || err.message);
