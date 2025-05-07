@@ -6,6 +6,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import { useNegocio } from '../NegocioContext';
 
 const businessTypes = [
   { value: '', label: 'Seleccionar' },
@@ -67,6 +68,7 @@ const LabeledInput: React.FC<{
 );
 
 const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
+  const { refreshNegocios } = useNegocio();
   const [business, setBusiness] = useState<Business | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<string>('');
@@ -228,7 +230,6 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   const handleSave = async () => {
     if (!business) return;
     try {
-      // Guarda config de negocio
       const updatedBusiness = {
         nombre: business.name,
         tipo_negocio: business.type,
@@ -241,23 +242,19 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
 
       // CRUD FAQs
       for (const faq of faqs) {
-        // Validar que la FAQ tenga pregunta y respuesta no vacías
         if (!faq.question.trim() || !faq.answer.trim()) {
           setMessage(`Error: La FAQ "${faq.question || 'sin pregunta'}" tiene campos vacíos. Por favor, completa ambos campos.`);
           return;
         }
 
         if (!faq.id) {
-          // Crear nueva FAQ
           const response = await axios.post<CreateFaqResponse>('http://localhost:3000/api/faqs', {
             negocioId,
             pregunta: faq.question.trim(),
             respuesta: faq.answer.trim(),
           });
-          // Actualizar el ID de la FAQ recién creada
           faq.id = response.data.id;
         } else {
-          // Actualizar FAQ existente
           await axios.put(`http://localhost:3000/api/faqs/${faq.id}`, {
             pregunta: faq.question.trim(),
             respuesta: faq.answer.trim(),
@@ -265,7 +262,6 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         }
       }
 
-      // Actualiza la lista de FAQs desde el backend
       const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
       setFaqs(res.data.map((f) => ({
         id: f.id,
@@ -274,6 +270,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
       })));
 
       setMessage('Configuración guardada con éxito');
+      refreshNegocios(); // Actualizamos la lista de negocios en el contexto
     } catch (error: any) {
       console.error('Error saving configuration:', error);
       setMessage(`Error al guardar la configuración: ${error.response?.data?.error || error.message}`);

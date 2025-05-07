@@ -41,3 +41,14 @@ export interface AnalyticsData {
     Enviado: number;
   };
 }
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date | string;
+  end: Date | string;
+  cliente?: string;
+  telefono?: string;
+  descripcion?: string;
+  backgroundColor?: string;
+}
