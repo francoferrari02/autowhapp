@@ -7,29 +7,28 @@ import { CalendarEvent } from '../types';
 
 interface CalendarComponentProps {
   events: CalendarEvent[];
-  onDateClick: (date: Date) => void;
   onEventClick: (event: any) => void;
 }
 
-const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onDateClick, onEventClick }) => {
+const Calendar: React.FC<CalendarComponentProps> = ({ events, onEventClick }) => {
   return (
     <FullCalendar
       plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
       initialView="timeGridWeek"
-      events={events.map(event => ({
-        ...event,
-        start: event.start,
-        end: event.end,
-      }))}
-      
-      dateClick={(info) => onDateClick(info.date)}
+      events={events}
       eventClick={(info) => onEventClick(info)}
-      slotMinTime="08:00:00"
-      slotMaxTime="20:00:00"
+      slotMinTime="00:00:00"
+      slotMaxTime="24:00:00"
       headerToolbar={{
         left: 'prev,next today',
         center: 'title',
         right: 'dayGridMonth,timeGridWeek,timeGridDay',
+      }}
+      slotLabelFormat={{
+        hour: 'numeric',
+        minute: '2-digit',
+        omitZeroMinute: true,
+        meridiem: 'short',
       }}
       height="auto"
       locale="es"
@@ -40,4 +39,4 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ events, onDateCli
   );
 };
 
-export default CalendarComponent;
+export default Calendar;

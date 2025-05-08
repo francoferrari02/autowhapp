@@ -7,7 +7,6 @@ const db = new sqlite3.Database('autowhapp.db', (err) => {
   }
 });
 
-// Crear tabla negocios
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS negocios (
@@ -22,9 +21,11 @@ db.serialize(() => {
       contexto TEXT,
       estado_bot INTEGER DEFAULT 1,
       modulo_pedidos INTEGER DEFAULT 0,
-      modulo_reservas INTEGER DEFAULT 0,  -- Nueva columna para el módulo de reservas
-      appointment_duration INTEGER DEFAULT 60,  -- Duración de citas en minutos
-      break_between INTEGER DEFAULT 15  -- Espacio entre citas en minutos
+      modulo_reservas INTEGER DEFAULT 0,
+      appointment_duration INTEGER DEFAULT 60,
+      break_between INTEGER DEFAULT 15,
+      hora_inicio_default TEXT DEFAULT '09:00',
+      hora_fin_default TEXT DEFAULT '18:00'
     )
   `, (err) => {
     if (err) {
@@ -34,51 +35,28 @@ db.serialize(() => {
     }
   });
 
-  // Agregar la columna grupo_id si no existe
   db.run(`
-    ALTER TABLE negocios ADD COLUMN grupo_id TEXT
+    CREATE TABLE IF NOT EXISTS reservas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      negocio_id INTEGER,
+      fecha TEXT NOT NULL,
+      hora_inicio TEXT NOT NULL,
+      hora_fin TEXT NOT NULL,
+      ocupado INTEGER DEFAULT 0,
+      cliente TEXT,
+      telefono TEXT,
+      descripcion TEXT,
+      FOREIGN KEY (negocio_id) REFERENCES negocios(id)
+    )
   `, (err) => {
     if (err) {
-      console.log('Columna grupo_id ya existe o no se pudo agregar:', err.message);
+      console.error('Error al crear tabla reservas:', err.message);
     } else {
-      console.log('Columna grupo_id agregada a la tabla negocios');
+      console.log('Tabla reservas creada o ya existe');
     }
   });
 
-  // Agregar la columna modulo_reservas si no existe
-  db.run(`
-    ALTER TABLE negocios ADD COLUMN modulo_reservas INTEGER DEFAULT 0
-  `, (err) => {
-    if (err) {
-      console.log('Columna modulo_reservas ya existe o no se pudo agregar:', err.message);
-    } else {
-      console.log('Columna modulo_reservas agregada a la tabla negocios');
-    }
-  });
-
-  // Agregar la columna appointment_duration si no existe
-  db.run(`
-    ALTER TABLE negocios ADD COLUMN appointment_duration INTEGER DEFAULT 60
-  `, (err) => {
-    if (err) {
-      console.log('Columna appointment_duration ya existe o no se pudo agregar:', err.message);
-    } else {
-      console.log('Columna appointment_duration agregada a la tabla negocios');
-    }
-  });
-
-  // Agregar la columna break_between si no existe
-  db.run(`
-    ALTER TABLE negocios ADD COLUMN break_between INTEGER DEFAULT 15
-  `, (err) => {
-    if (err) {
-      console.log('Columna break_between ya existe o no se pudo agregar:', err.message);
-    } else {
-      console.log('Columna break_between agregada a la tabla negocios');
-    }
-  });
-
-  // Crear tabla faqs
+  // Crear otras tablas (faqs, productos, mensajes_pedidos, pedidos) sin cambios
   db.run(`
     CREATE TABLE IF NOT EXISTS faqs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,12 +68,9 @@ db.serialize(() => {
   `, (err) => {
     if (err) {
       console.error('Error al crear tabla faqs:', err.message);
-    } else {
-      console.log('Tabla faqs creada o ya existe');
     }
   });
 
-  // Crear tabla productos
   db.run(`
     CREATE TABLE IF NOT EXISTS productos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,12 +84,9 @@ db.serialize(() => {
   `, (err) => {
     if (err) {
       console.error('Error al crear tabla productos:', err.message);
-    } else {
-      console.log('Tabla productos creada o ya existe');
     }
   });
 
-  // Crear tabla mensajes_pedidos
   db.run(`
     CREATE TABLE IF NOT EXISTS mensajes_pedidos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,12 +98,9 @@ db.serialize(() => {
   `, (err) => {
     if (err) {
       console.error('Error al crear tabla mensajes_pedidos:', err.message);
-    } else {
-      console.log('Tabla mensajes_pedidos creada o ya existe');
     }
   });
 
-  // Crear tabla pedidos
   db.run(`
     CREATE TABLE IF NOT EXISTS pedidos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,28 +114,6 @@ db.serialize(() => {
   `, (err) => {
     if (err) {
       console.error('Error al crear tabla pedidos:', err.message);
-    } else {
-      console.log('Tabla pedidos creada o ya existe');
-    }
-  });
-
-  // Crear tabla reservas
-  db.run(`
-    CREATE TABLE IF NOT EXISTS reservas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      negocio_id INTEGER,
-      fecha_inicio TEXT NOT NULL,
-      fecha_fin TEXT NOT NULL,
-      cliente TEXT,
-      telefono TEXT,
-      descripcion TEXT,
-      FOREIGN KEY (negocio_id) REFERENCES negocios(id)
-    )
-  `, (err) => {
-    if (err) {
-      console.error('Error al crear tabla reservas:', err.message);
-    } else {
-      console.log('Tabla reservas creada o ya existe');
     }
   });
 });
