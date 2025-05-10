@@ -29,4 +29,14 @@ AutoWhapp es un proyecto que implementa un chatbot automatizado para WhatsApp, c
 - Confirmar que el webhook de n8n tiene el URL antes puesto en uno de los pasos anteriores, si no es el mismo, copiar el que aparece en n8n y cambiar la variable por esa
 - El bot esta configurado para responder solamente en un chat que se llama "Prueba facultad", crear un grupo con otro numero para poder mandar mensaje a ese grupo y que el bot conteste
 
+### corriendolos juntos
+- Ve a `autowhapp-backend/`
+- Correr Ngrok: `ngrok http 5678`
+- Cada vez que se inicie ngrok, se generara un nuevo URL, se debe actualizar en `autowhapp-backend/whatsapp/client.js` cambiando el valor de `webhookUrl`, deberia quedar algo asi `const webhookUrl = 'https://NUEVO_URL_DE_NGROK/webhook/procesar-mensaje';`
+- correr node `index.js`
+- despues se corre el front en `autowhapp-dashboard/` con `yarn start`
+- te deberia ofrecer de correr el dashboard en el puerto 3001
+
+
+
 
