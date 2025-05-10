@@ -299,7 +299,7 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
 
           {/* Sección tabla productos */}
           <Box sx={{ px: 2, py: 3, borderTop: '2px solid #e0e0e0' }}>
-            <Typography variant="h6" sx={{ fontFamily: 'Poppins907', fontWeight: 'bold', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
               Lista de Productos/Servicios
             </Typography>
             <TextField

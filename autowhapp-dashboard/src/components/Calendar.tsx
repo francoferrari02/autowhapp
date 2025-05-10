@@ -3,6 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import esLocale from '@fullcalendar/core/locales/es'
 import { CalendarEvent } from '../types';
 
 interface CalendarComponentProps {
@@ -31,7 +32,7 @@ const Calendar: React.FC<CalendarComponentProps> = ({ events, onEventClick }) =>
         meridiem: 'short',
       }}
       height="auto"
-      locale="es"
+      locale={esLocale}
       timeZone="America/Argentina/Buenos_Aires"
       eventTextColor="white"
       allDaySlot={false}
