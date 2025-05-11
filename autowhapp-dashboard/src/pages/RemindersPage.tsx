@@ -1,3 +1,6 @@
+// Este archivo es la versión completa de RemindersPage.tsx con integración backend para toggle y delete
+// Recordá reemplazar esto en tu proyecto si querés que se conecte correctamente con el backend
+
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, TextField, MenuItem, IconButton, Switch, Snackbar, Alert } from '@mui/material';
 import Header from '../components/Header';
@@ -50,24 +53,36 @@ const RemindersPage: React.FC = () => {
     }
   }, [negocioId]);
 
-const handleToggleRecordatorios = (nuevoEstado: boolean) => {
-  if (negocioId == null) return;
-  axios
-    .post('http://localhost:3000/api/actualizar-modulo-recordatorios', {
-      negocioId,
-      moduloRecordatorios: nuevoEstado,
-    })
-    .then(() => {
-      setModuloRecordatorios(nuevoEstado);
-      console.log("Estado actualizado en el backend:", nuevoEstado);
-    })
-    .catch((err) => console.error('Error al actualizar estado:', err));
-};
-
   const showMessage = (message: string, severity: 'success' | 'error') => {
     setPageMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
+  };
+
+  const addReminder = async () => {
+    try {
+      const res = await axios.post<{ id: number }>(`http://localhost:3000/api/recordatorios/${negocioId}`, {
+        message,
+        frequency,
+        time,
+        day,
+        activo: 1
+      });
+
+      const newReminder: Recordatorio = {
+        id: res.data.id,
+        message,
+        frequency,
+        time,
+        day,
+        activo: true
+      };
+
+      setReminders([...reminders, newReminder]);
+      showMessage('Recordatorio agregado con éxito', 'success');
+    } catch (err) {
+      showMessage('Error al agregar el recordatorio', 'error');
+    }
   };
 
   const handleAddReminder = () => {
@@ -75,6 +90,7 @@ const handleToggleRecordatorios = (nuevoEstado: boolean) => {
       showMessage('El mensaje no puede estar vacío', 'error');
       return;
     }
+
     if (frequency === 'monthly') {
       const dayNum = parseInt(day);
       if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
@@ -89,29 +105,51 @@ const handleToggleRecordatorios = (nuevoEstado: boolean) => {
         showMessage(`⚠️ El día ${dayNum} no existe en: ${mesesInvalidos.join(', ')}. Ese mes no se enviará el recordatorio.`, 'error');
       }
     }
-    const newReminder: Recordatorio = {
-      id: Date.now(),
-      message,
-      frequency,
-      day,
-      time,
-      activo: true
-    };
-    setReminders([...reminders, newReminder]);
+
+    addReminder();
     setMessage('');
     setFrequency('daily');
     setDay('');
     setTime('09:00');
-    showMessage('Recordatorio añadido', 'success');
   };
 
-  const toggleReminder = (id: number) => {
-    setReminders(reminders.map(r => r.id === id ? { ...r, activo: !r.activo } : r));
+  const handleToggleRecordatorios = (nuevoEstado: boolean) => {
+    if (negocioId == null) return;
+    axios
+      .post('http://localhost:3000/api/actualizar-modulo-recordatorios', {
+        negocioId,
+        moduloRecordatorios: nuevoEstado,
+      })
+      .then(() => {
+        setModuloRecordatorios(nuevoEstado);
+        console.log("Estado actualizado en el backend:", nuevoEstado);
+      })
+      .catch((err) => console.error('Error al actualizar estado:', err));
   };
 
-  const handleDeleteReminder = (id: number) => {
-    setReminders(reminders.filter(r => r.id !== id));
-    showMessage('Recordatorio eliminado', 'success');
+  const toggleReminder = async (id: number) => {
+    const reminder = reminders.find(r => r.id === id);
+    if (!reminder) return;
+
+    try {
+      await axios.put(`http://localhost:3000/api/recordatorios/${id}/activo`, {
+        activo: reminder.activo ? 0 : 1
+      });
+      setReminders(reminders.map(r => r.id === id ? { ...r, activo: !r.activo } : r));
+      showMessage('Estado del recordatorio actualizado', 'success');
+    } catch (err) {
+      showMessage('Error al actualizar el recordatorio', 'error');
+    }
+  };
+
+  const handleDeleteReminder = async (id: number) => {
+    try {
+      await axios.delete(`http://localhost:3000/api/recordatorios/${id}`);
+      setReminders(reminders.filter(r => r.id !== id));
+      showMessage('Recordatorio eliminado con éxito', 'success');
+    } catch (err) {
+      showMessage('Error al eliminar el recordatorio', 'error');
+    }
   };
 
   const groupedReminders = {
@@ -156,7 +194,9 @@ const handleToggleRecordatorios = (nuevoEstado: boolean) => {
               <TextField label="Día del mes (1-31)" type="number" value={day} onChange={(e) => setDay(e.target.value)} fullWidth sx={{ mb: 2 }} />
             )}
             <TextField type="time" label="Horario" value={time} onChange={(e) => setTime(e.target.value)} fullWidth sx={{ mb: 2 }} />
-            <Button onClick={handleAddReminder} sx={{ backgroundColor: '#2563EB', color: 'white' }}>Añadir</Button>
+            <Button onClick={handleAddReminder} variant="contained" color="primary">
+              Añadir recordatorio
+            </Button>
           </Box>
 
           {Object.entries(groupedReminders).map(([grupo, items]) => (

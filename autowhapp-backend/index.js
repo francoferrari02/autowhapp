@@ -3,6 +3,101 @@ const path = require('path');
 const cors = require('cors');
 const db = require('./db');
 const { clients } = require('./whatsapp/client');
+const cron = require('node-cron');
+cron.schedule('* * * * *', () => {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentDayName = now.toLocaleDateString('es-AR', { weekday: 'long' });
+  const currentDayNumber = String(now.getDate());
+  console.log('🕒 Ejecutando CRON | Hora local:', now.toLocaleTimeString(), '| Minutos:', currentMinutes);
+
+  const toMinutes = (timeString) => {
+    const [hh, mm] = timeString.split(':').map(Number);
+    return hh * 60 + mm;
+  };
+
+  db.all('SELECT * FROM recordatorios WHERE activo = 1', [], async (err, rows) => {
+    if (err) {
+      console.error('❌ Error al obtener recordatorios:', err.message);
+      return;
+    }
+
+    console.log(`📂 Recordatorios activos encontrados: ${rows.length}`);
+
+    for (const recordatorio of rows) {
+      const { id, message, frequency, time, day } = recordatorio;
+      const reminderMinutes = toMinutes(time);
+      const diffMinutes = Math.abs(currentMinutes - reminderMinutes);
+
+      console.log(`🔍 Evaluando recordatorio ID ${id} → "${message}"`);
+      console.log(`   - Frecuencia: ${frequency}, Día: ${day}, Hora: ${time}, diffMinutes: ${diffMinutes}`);
+
+      let debeEnviar = false;
+
+      if (frequency === 'daily' && diffMinutes <= 1) {
+        debeEnviar = true;
+      } else if (frequency === 'weekly' &&
+        day?.toLowerCase() === currentDayName.toLowerCase() &&
+        diffMinutes <= 1) {
+        debeEnviar = true;
+      } else if (frequency === 'monthly' &&
+        day === currentDayNumber &&
+        diffMinutes <= 1) {
+        debeEnviar = true;
+      } else if (frequency === 'once') {
+        const nowDate = now.toISOString().split('T')[0];
+        const target = `${day} ${time}`;
+        const fullMatch = `${nowDate} ${now.toTimeString().slice(0, 5)}`;
+        if (target === fullMatch) debeEnviar = true;
+      }
+
+      if (!debeEnviar) {
+        console.log(`⏸️ No se debe enviar el recordatorio ID ${id}`);
+        continue;
+      }
+
+      console.log(`🚀 Se debe enviar el recordatorio ID ${id}`);
+      console.log(`🔎 Buscando cliente autenticado...`);
+
+      try {
+        const clientObj = Object.values(clients).find(c => c.client && c.authenticated);
+        if (!clientObj) {
+          console.error('❌ No hay cliente WhatsApp autenticado');
+          continue;
+        }
+
+        const client = clientObj.client;
+
+        console.log('✅ Cliente autenticado encontrado');
+
+        const chats = await client.getChats();
+        console.log('📦 Lista de nombres de chats:', chats.map(c => c.name));
+        const grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
+
+        if (!grupo) {
+          console.error('❌ No se encontró el grupo "Prueba Autowhapp"');
+          continue;
+        }
+
+        console.log(`📤 Enviando mensaje al grupo ID: ${grupo.id._serialized}`);
+        console.log('📦 Detalles del grupo:', grupo);
+        console.time(`🕐 Tiempo envío recordatorio ID ${id}`);
+
+        try {
+          await client.sendMessage(grupo.id._serialized, `🔔 Recordatorio: ${message}`);
+          console.timeEnd(`🕐 Tiempo envío recordatorio ID ${id}`);
+          console.log(`✉️ Recordatorio enviado con éxito para ID ${id}`);
+        } catch (err) {
+          console.error('🚨 Error al hacer sendMessage:', err);
+        }
+      } catch (e) {
+        console.error('❌ Error al enviar el mensaje:', e);
+      }
+    }
+  });
+});
+
+
 
 const app = express();
 app.use(express.json());
@@ -271,6 +366,26 @@ app.post('/api/actualizar-modulo-reservas', (req, res) => {
     res.json({ success: true });
   });
 });
+
+app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
+  const { negocioId, moduloRecordatorios } = req.body;
+  console.log('Datos recibidos en POST /api/actualizar-modulo-recordatorios:', { negocioId, moduloRecordatorios });
+
+  if (!negocioId || moduloRecordatorios === undefined) {
+    console.log('Faltan campos obligatorios: negocioId o moduloRecordatorios');
+    return res.status(400).json({ error: 'negocioId y moduloRecordatorios son requeridos' });
+  }
+
+  db.run('UPDATE negocios SET modulo_recordatorios = ? WHERE id = ?', [moduloRecordatorios ? 1 : 0, negocioId], (err) => {
+    if (err) {
+      console.error('Error al actualizar módulo de recordatorios:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    console.log(`Estado del módulo de recordatorios actualizado para negocio ${negocioId}:`, moduloRecordatorios);
+    res.json({ success: true });
+  });
+});
+
 
 // Otros endpoints (negocios, faqs, productos, mensajes_pedidos, pedidos) permanecen sin cambios
 app.post('/api/negocios', (req, res) => {
@@ -561,6 +676,47 @@ app.put('/api/pedido/:id/estado', (req, res) => {
     res.json({ success: true });
   });
 });
+
+// Crear nuevo recordatorio
+app.post('/api/recordatorios/:negocioId', (req, res) => {
+  const { negocioId } = req.params;
+  const { message, frequency, time, day = '', activo = 1 } = req.body;
+
+  if (!message || !frequency || !time) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+
+  db.run(
+    `INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo) VALUES (?, ?, ?, ?, ?, ?)`,
+    [negocioId, message, frequency, time, day, activo],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, id: this.lastID });
+    }
+  );
+});
+
+// Eliminar un recordatorio
+app.delete('/api/recordatorios/:id', (req, res) => {
+  const { id } = req.params;
+
+  db.run(`DELETE FROM recordatorios WHERE id = ?`, [id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+// Activar o desactivar un recordatorio
+app.put('/api/recordatorios/:id/activo', (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+
+  db.run(`UPDATE recordatorios SET activo = ? WHERE id = ?`, [activo, id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
 
 app.use(express.static(path.join(__dirname, '../autowhapp-dashboard/build')));
 app.get('*', (req, res) => {
