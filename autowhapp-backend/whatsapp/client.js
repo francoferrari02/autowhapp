@@ -167,24 +167,36 @@ function initializeClientForNegocio(negocio) {
       const [hours, minutes] = time.split(':').map(Number);
       return hours * 60 + minutes;
     };
-    const slots = [];
-    let currentMinutes = toMinutes(hora_inicio_default);
-    const endMinutes = toMinutes(hora_fin_default);
-    const occupiedSlots = reservas.map(r => ({
-      start: toMinutes(r.hora_inicio),
-      end: toMinutes(r.hora_fin),
-    }));
 
-    while (currentMinutes + appointment_duration <= endMinutes) {
-      const start = formatTime(currentMinutes);
-      const end = formatTime(currentMinutes + appointment_duration);
-      const isOccupied = occupiedSlots.some(slot => 
-        currentMinutes < slot.end && currentMinutes + appointment_duration > slot.start
-      );
-      if (!isOccupied) {
-        slots.push({ start, end });
+    const slotsPorDia = {};
+    const hoy = new Date();
+    for (let i = 0; i < 14; i++) {
+      const dia = new Date(hoy);
+      dia.setDate(hoy.getDate() + i);
+      const fecha = dia.toISOString().split('T')[0]; // Ejemplo: "2023-10-25"
+      
+      const slots = [];
+      let currentMinutes = toMinutes(hora_inicio_default);
+      const endMinutes = toMinutes(hora_fin_default);
+      const occupiedSlots = reservas
+        .filter(r => r.fecha === fecha)
+        .map(r => ({
+          start: toMinutes(r.hora_inicio),
+          end: toMinutes(r.hora_fin),
+        }));
+
+      while (currentMinutes + appointment_duration <= endMinutes) {
+        const start = formatTime(currentMinutes);
+        const end = formatTime(currentMinutes + appointment_duration);
+        const isOccupied = occupiedSlots.some(slot => 
+          currentMinutes < slot.end && currentMinutes + appointment_duration > slot.start
+        );
+        if (!isOccupied) {
+          slots.push({ start, end });
+        }
+        currentMinutes += appointment_duration + break_between;
       }
-      currentMinutes += appointment_duration + break_between;
+      slotsPorDia[fecha] = slots;
     }
 
     const negocioActualizado = {
@@ -209,7 +221,7 @@ function initializeClientForNegocio(negocio) {
       reservas,
       faqs_texto: faqsTexto,
       productos_texto: productosTexto,
-      slots
+      slotsPorDia
     };
 
     let numeroCliente = chat.isGroup ? msg.author : msg.from;
@@ -224,7 +236,8 @@ function initializeClientForNegocio(negocio) {
     const payload = {
       mensaje: msg.body,
       numeroCliente,
-      negocio: negocioActualizado
+      negocio: negocioActualizado,
+      fechaActual: new Date().toISOString().split('T')[0]
     };
 
     try {

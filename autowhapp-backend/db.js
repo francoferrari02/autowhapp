@@ -73,6 +73,18 @@ db.serialize(() => {
       console.log('Tabla reservas creada o ya existe');
     }
   });
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_reservas_negocio_fecha 
+    ON reservas (negocio_id, fecha)
+  `, (err) => {
+    if (err) {
+      console.error('Error al crear índice idx_reservas_negocio_fecha:', err.message);
+    } else {
+      console.log('Índice idx_reservas_negocio_fecha creado o ya existe');
+    }
+  });
+
   db.run(`
     CREATE TABLE IF NOT EXISTS recordatorios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
