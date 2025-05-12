@@ -27,9 +27,9 @@ export interface Order {
   status: 'Recibido' | 'Preparando' | 'Enviado';
   client: string;
   phone: string;
-  items: string;
-  total: string;
-  cantidad: number;
+  items: { nombre: string; cantidad: number }[];
+  total: number;
+  cantidad: string; // Este campo ya no se usa, pero lo dejamos por compatibilidad
 }
 
 export interface AnalyticsData {

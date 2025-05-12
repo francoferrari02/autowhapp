@@ -35,25 +35,23 @@ db.serialize(() => {
     }
   });
   db.all(`PRAGMA table_info(negocios)`, (err, columns) => {
-  if (err) {
-    console.error('Error al obtener columnas de negocios:', err.message);
-    return;
-  }
-
-  const columnExists = columns.some(col => col.name === 'modulo_recordatorios');
-
-  if (!columnExists) {
-    db.run(`ALTER TABLE negocios ADD COLUMN modulo_recordatorios INTEGER DEFAULT 0`, (err) => {
-      if (err) {
-        console.error('Error al agregar columna modulo_recordatorios:', err.message);
-      } else {
-        console.log('Columna modulo_recordatorios agregada a negocios');
-      }
-    });
-  } else {
-    console.log('Columna modulo_recordatorios ya existe en negocios');
-  }
-});
+    if (err) {
+      console.error('Error al obtener columnas de negocios:', err.message);
+      return;
+    }
+    const columnExists = columns.some(col => col.name === 'modulo_recordatorios');
+    if (!columnExists) {
+      db.run(`ALTER TABLE negocios ADD COLUMN modulo_recordatorios INTEGER DEFAULT 0`, (err) => {
+        if (err) {
+          console.error('Error al agregar columna modulo_recordatorios:', err.message);
+        } else {
+          console.log('Columna modulo_recordatorios agregada a negocios');
+        }
+      });
+    } else {
+      console.log('Columna modulo_recordatorios ya existe en negocios');
+    }
+  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS reservas (
@@ -75,27 +73,42 @@ db.serialize(() => {
       console.log('Tabla reservas creada o ya existe');
     }
   });
-      db.run(`
-      CREATE TABLE IF NOT EXISTS recordatorios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        negocio_id INTEGER NOT NULL,
-        message TEXT NOT NULL,
-        frequency TEXT NOT NULL,
-        time TEXT NOT NULL,
-        day TEXT,
-        activo INTEGER DEFAULT 1,
-        FOREIGN KEY (negocio_id) REFERENCES negocios(id)
-      )
-    `, (err) => {
-      if (err) {
-        console.error('Error al crear tabla recordatorios:', err.message);
-      } else {
-        console.log('Tabla recordatorios creada o ya existe');
-      }
-    });
+  db.run(`
+    CREATE TABLE IF NOT EXISTS recordatorios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      negocio_id INTEGER NOT NULL,
+      message TEXT NOT NULL,
+      frequency TEXT NOT NULL,
+      time TEXT NOT NULL,
+      day TEXT,
+      activo INTEGER DEFAULT 1,
+      last_sent TEXT,
+      FOREIGN KEY (negocio_id) REFERENCES negocios(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error al crear tabla recordatorios:', err.message);
+    } else {
+      console.log('Tabla recordatorios creada o ya existe');
+      db.all(`PRAGMA table_info(recordatorios)`, (err, columns) => {
+        if (err) {
+          console.error('Error al obtener columnas de recordatorios:', err.message);
+          return;
+        }
+        const lastSentExists = columns.some(col => col.name === 'last_sent');
+        if (!lastSentExists) {
+          db.run(`ALTER TABLE recordatorios ADD COLUMN last_sent TEXT`, (err) => {
+            if (err) {
+              console.error('Error al agregar columna last_sent:', err.message);
+            } else {
+              console.log('Columna last_sent agregada a recordatorios');
+            }
+          });
+        }
+      });
+    }
+  });
 
-
-  // Crear otras tablas (faqs, productos, mensajes_pedidos, pedidos) sin cambios
   db.run(`
     CREATE TABLE IF NOT EXISTS faqs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,9 +158,9 @@ db.serialize(() => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       negocio_id INTEGER,
       numero_cliente TEXT NOT NULL,
-      producto TEXT NOT NULL,
-      cantidad INTEGER NOT NULL,
+      items TEXT NOT NULL,
       estado TEXT DEFAULT 'recibido',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (negocio_id) REFERENCES negocios(id)
     )
   `, (err) => {

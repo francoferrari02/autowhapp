@@ -4,11 +4,13 @@ const cors = require('cors');
 const db = require('./db');
 const { clients } = require('./whatsapp/client');
 const cron = require('node-cron');
-cron.schedule('* * * * *', () => {
+
+cron.schedule('*/30 * * * * *', () => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const currentDayName = now.toLocaleDateString('es-AR', { weekday: 'long' });
   const currentDayNumber = String(now.getDate());
+  const currentDateTime = now.toISOString().slice(0, 19).replace('T', ' ');
   console.log('🕒 Ejecutando CRON | Hora local:', now.toLocaleTimeString(), '| Minutos:', currentMinutes);
 
   const toMinutes = (timeString) => {
@@ -25,7 +27,7 @@ cron.schedule('* * * * *', () => {
     console.log(`📂 Recordatorios activos encontrados: ${rows.length}`);
 
     for (const recordatorio of rows) {
-      const { id, message, frequency, time, day } = recordatorio;
+      const { id, message, frequency, time, day, negocio_id, last_sent } = recordatorio;
       const reminderMinutes = toMinutes(time);
       const diffMinutes = Math.abs(currentMinutes - reminderMinutes);
 
@@ -34,21 +36,35 @@ cron.schedule('* * * * *', () => {
 
       let debeEnviar = false;
 
-      if (frequency === 'daily' && diffMinutes <= 1) {
+      if (last_sent) {
+        const lastSentDate = new Date(last_sent);
+        const timeSinceLastSent = (now - lastSentDate) / (1000 * 60);
+        const isDuplicate = 
+          (frequency === 'daily' && lastSentDate.toDateString() === now.toDateString()) ||
+          (frequency === 'weekly' && lastSentDate.getDay() === now.getDay()) ||
+          (frequency === 'monthly' && lastSentDate.getDate() === now.getDate()) ||
+          (frequency === 'once' && lastSentDate.toISOString().slice(0, 10) === now.toISOString().slice(0, 10));
+
+        if (isDuplicate) {
+          console.log(`⏸️ Recordatorio ID ${id} ya enviado recientemente`);
+          continue;
+        }
+        if (timeSinceLastSent < 2) {
+          console.log(`⏸️ Recordatorio ID ${id} enviado hace menos de 2 minutos (${timeSinceLastSent.toFixed(1)} min)`);
+          continue;
+        }
+      }
+
+      if (frequency === 'daily' && diffMinutes === 0) {
         debeEnviar = true;
-      } else if (frequency === 'weekly' &&
-        day?.toLowerCase() === currentDayName.toLowerCase() &&
-        diffMinutes <= 1) {
+      } else if (frequency === 'weekly' && day?.toLowerCase() === currentDayName.toLowerCase() && diffMinutes === 0) {
         debeEnviar = true;
-      } else if (frequency === 'monthly' &&
-        day === currentDayNumber &&
-        diffMinutes <= 1) {
+      } else if (frequency === 'monthly' && day === currentDayNumber && diffMinutes === 0) {
         debeEnviar = true;
       } else if (frequency === 'once') {
-        const nowDate = now.toISOString().split('T')[0];
-        const target = `${day} ${time}`;
-        const fullMatch = `${nowDate} ${now.toTimeString().slice(0, 5)}`;
-        if (target === fullMatch) debeEnviar = true;
+        const targetDateTime = `${day} ${time}:00`;
+        const fullMatch = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}:00`;
+        if (targetDateTime === fullMatch) debeEnviar = true;
       }
 
       if (!debeEnviar) {
@@ -57,47 +73,92 @@ cron.schedule('* * * * *', () => {
       }
 
       console.log(`🚀 Se debe enviar el recordatorio ID ${id}`);
-      console.log(`🔎 Buscando cliente autenticado...`);
+      console.log(`🔎 Buscando cliente autenticado para negocio ${negocio_id}...`);
 
       try {
-        const clientObj = Object.values(clients).find(c => c.client && c.authenticated);
-        if (!clientObj) {
-          console.error('❌ No hay cliente WhatsApp autenticado');
+        const clientObj = clients[negocio_id];
+        if (!clientObj || !clientObj.client || !clientObj.authenticated) {
+          console.error(`❌ No hay cliente autenticado para negocio ${negocio_id}`);
           continue;
         }
 
         const client = clientObj.client;
-
         console.log('✅ Cliente autenticado encontrado');
 
-        const chats = await client.getChats();
-        console.log('📦 Lista de nombres de chats:', chats.map(c => c.name));
-        const grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
+        console.log('📡 Verificando estado del cliente...');
+        const state = await client.getState();
+        console.log(`📡 Estado del cliente: ${state}`);
+        if (state !== 'CONNECTED') {
+          console.error(`❌ Cliente no conectado para negocio ${negocio_id}. Estado: ${state}`);
+          continue;
+        }
+
+        console.log('Obteniendo chat del grupo...');
+        let grupo;
+        const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = ?', [negocio_id], (err, row) => resolve(row)));
+        if (negocio && negocio.grupo_id) {
+          try {
+            grupo = await client.getChatById(negocio.grupo_id);
+            console.log(`✅ Chat del grupo obtenido directamente: ${grupo.name}`);
+          } catch (err) {
+            console.error('❌ Error al obtener chat por ID:', err.message);
+          }
+        }
 
         if (!grupo) {
-          console.error('❌ No se encontró el grupo "Prueba Autowhapp"');
+          console.log('🔍 No se encontró groupId o falló getChatById, obteniendo todos los chats...');
+          let chats;
+          const maxAttempts = 3;
+          let attempt = 0;
+          while (attempt < maxAttempts) {
+            try {
+              console.time(`getChats intento ${attempt + 1}`);
+              chats = await Promise.race([
+                client.getChats(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout al obtener chats')), 15000))
+              ]);
+              console.timeEnd(`getChats intento ${attempt + 1}`);
+              break;
+            } catch (chatErr) {
+              attempt++;
+              console.error(`❌ Error al obtener chats (intento ${attempt}/${maxAttempts}):`, chatErr.message);
+              if (attempt === maxAttempts) continue;
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+          if (!chats) {
+            console.error(`❌ No se pudieron obtener chats después de ${maxAttempts} intentos`);
+            continue;
+          }
+          grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
+        }
+
+        if (!grupo) {
+          console.error(`❌ No se encontró el grupo "Prueba Autowhapp" para negocio ${negocio_id}`);
           continue;
         }
 
         console.log(`📤 Enviando mensaje al grupo ID: ${grupo.id._serialized}`);
-        console.log('📦 Detalles del grupo:', grupo);
         console.time(`🕐 Tiempo envío recordatorio ID ${id}`);
 
         try {
           await client.sendMessage(grupo.id._serialized, `🔔 Recordatorio: ${message}`);
           console.timeEnd(`🕐 Tiempo envío recordatorio ID ${id}`);
           console.log(`✉️ Recordatorio enviado con éxito para ID ${id}`);
-        } catch (err) {
-          console.error('🚨 Error al hacer sendMessage:', err);
+
+          db.run('UPDATE recordatorios SET last_sent = ? WHERE id = ?', [currentDateTime, id], (err) => {
+            if (err) console.error('❌ Error al actualizar last_sent:', err.message);
+            else console.log(`✅ last_sent actualizado para recordatorio ID ${id}`);
+          });
+        } catch (sendErr) {
+          console.error(`🚨 Error al enviar mensaje para recordatorio ID ${id}:`, sendErr.message);
         }
       } catch (e) {
-        console.error('❌ Error al enviar el mensaje:', e);
+        console.error(`❌ Error general al procesar recordatorio ID ${id}:`, e.message);
       }
     }
   });
 });
-
-
 
 const app = express();
 app.use(express.json());
@@ -123,19 +184,29 @@ app.get('/api/negocio/:id', (req, res) => {
       console.log('Negocio no encontrado:', negocioId);
       return res.status(404).json({ error: 'Negocio no encontrado' });
     }
+    // Obtener reservas
     db.all('SELECT * FROM reservas WHERE negocio_id = ?', [negocioId], (err, reservas) => {
       if (err) {
         console.error('Error al obtener reservas:', err.message);
         return res.status(500).json({ error: err.message });
       }
-      res.json({
-        ...row,
-        reservas: reservas || [],
-        modulo_reservas: row.modulo_reservas === 1,
-        appointmentDuration: row.appointment_duration,
-        breakBetween: row.break_between,
-        hora_inicio_default: row.hora_inicio_default,
-        hora_fin_default: row.hora_fin_default,
+      // Obtener recordatorios
+      db.all('SELECT * FROM recordatorios WHERE negocio_id = ?', [negocioId], (err, recordatorios) => {
+        if (err) {
+          console.error('Error al obtener recordatorios:', err.message);
+          return res.status(500).json({ error: err.message });
+        }
+        res.json({
+          ...row,
+          reservas: reservas || [],
+          recordatorios: recordatorios || [], // Añadimos los recordatorios a la respuesta
+          modulo_reservas: row.modulo_reservas === 1,
+          modulo_recordatorios: row.modulo_recordatorios === 1, // Añadimos el estado del módulo
+          appointmentDuration: row.appointment_duration,
+          breakBetween: row.break_between,
+          hora_inicio_default: row.hora_inicio_default,
+          hora_fin_default: row.hora_fin_default,
+        });
       });
     });
   });
@@ -385,7 +456,6 @@ app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
     res.json({ success: true });
   });
 });
-
 
 // Otros endpoints (negocios, faqs, productos, mensajes_pedidos, pedidos) permanecen sin cambios
 app.post('/api/negocios', (req, res) => {
@@ -648,7 +718,7 @@ app.get('/api/mensajes-pedidos/:negocioId', (req, res) => {
 
 app.get('/api/pedidos/:negocioId', (req, res) => {
   console.log(`Solicitud GET /api/pedidos/${req.params.negocioId}`);
-  db.all('SELECT * FROM pedidos WHERE negocio_id = ?', [req.params.negocioId], (err, rows) => {
+  db.all('SELECT * FROM pedidos WHERE negocio_id = ? ORDER BY created_at DESC', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener pedidos:', err.message);
       return res.status(500).json({ error: err.message });
@@ -696,6 +766,49 @@ app.post('/api/recordatorios/:negocioId', (req, res) => {
   );
 });
 
+// Actualizar un recordatorio
+app.put('/api/recordatorios/:id', (req, res) => {
+  const { id } = req.params;
+  const { message, frequency, time, day, activo } = req.body;
+
+  if (!message || !frequency || !time) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios: message, frequency y time son requeridos' });
+  }
+
+  // Obtener el recordatorio actual para comparar la hora
+  db.get('SELECT time FROM recordatorios WHERE id = ?', [id], (err, row) => {
+    if (err) {
+      console.error('Error al obtener recordatorio actual:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Recordatorio no encontrado' });
+    }
+
+    const currentTime = row.time;
+    const isTimeChanged = currentTime !== time;
+
+    // Si la hora cambió, restablecer last_sent
+    const lastSentUpdate = isTimeChanged ? null : row.last_sent;
+
+    db.run(
+      `UPDATE recordatorios SET message = ?, frequency = ?, time = ?, day = ?, activo = ?, last_sent = ? WHERE id = ?`,
+      [message, frequency, time, day || '', activo ? 1 : 0, lastSentUpdate, id],
+      function (err) {
+        if (err) {
+          console.error('Error al actualizar recordatorio:', err.message);
+          return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+          return res.status(404).json({ error: 'Recordatorio no encontrado' });
+        }
+        console.log(`Recordatorio ${id} actualizado con éxito`);
+        res.json({ success: true });
+      }
+    );
+  });
+});
+
 // Eliminar un recordatorio
 app.delete('/api/recordatorios/:id', (req, res) => {
   const { id } = req.params;
@@ -717,10 +830,56 @@ app.put('/api/recordatorios/:id/activo', (req, res) => {
   });
 });
 
-
 app.use(express.static(path.join(__dirname, '../autowhapp-dashboard/build')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../autowhapp-dashboard/build', 'index.html'));
+});
+
+// Endpoint para registrar pedidos
+app.post('/api/pedidos/:negocioId', (req, res) => {
+  const { negocioId } = req.params;
+  const { numero_cliente, items, estado = 'recibido' } = req.body;
+  console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items, estado });
+
+  if (!numero_cliente || !items || !Array.isArray(items) || items.length === 0) {
+    console.log('Faltan campos obligatorios: numero_cliente o items (debe ser un array no vacío)');
+    return res.status(400).json({ error: 'numero_cliente e items (array no vacío) son requeridos' });
+  }
+
+  // Validar que cada item tenga nombre y cantidad
+  const invalidItems = items.filter(item => !item.nombre || item.cantidad == null || isNaN(item.cantidad) || item.cantidad <= 0);
+  if (invalidItems.length > 0) {
+    console.log('Items inválidos encontrados:', invalidItems);
+    return res.status(400).json({ error: 'Todos los items deben tener nombre y cantidad válida (> 0)' });
+  }
+
+  db.get('SELECT modulo_pedidos FROM negocios WHERE id = ?', [negocioId], (err, row) => {
+    if (err) {
+      console.error('Error al verificar negocio:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row || row.modulo_pedidos !== 1) {
+      console.log('Módulo de pedidos no activo para negocio:', negocioId);
+      return res.status(403).json({ error: 'Módulo de pedidos no activo' });
+    }
+
+    // Convertir el array de items a JSON
+    const itemsJson = JSON.stringify(items);
+    console.log('Items JSON a insertar:', itemsJson);
+
+    db.run(
+      'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES (?, ?, ?, ?)',
+      [negocioId, numero_cliente, itemsJson, estado],
+      function (err) {
+        if (err) {
+          console.error('Error al registrar pedido:', err.message);
+          return res.status(500).json({ error: err.message });
+        }
+        console.log('Pedido registrado con éxito, ID:', this.lastID);
+        res.json({ success: true, id: this.lastID });
+      }
+    );
+  });
 });
 
 app.listen(3000, '0.0.0.0', () => {

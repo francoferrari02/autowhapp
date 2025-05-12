@@ -1,14 +1,12 @@
-// Este archivo es la versión completa de RemindersPage.tsx con integración backend para toggle y delete
-// Recordá reemplazar esto en tu proyecto si querés que se conecte correctamente con el backend
-
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, TextField, MenuItem, IconButton, Switch, Snackbar, Alert } from '@mui/material';
+import { Box, Typography, Button, TextField, MenuItem, IconButton, Switch, Snackbar, Alert, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import ModuleStatus from '../components/ModuleStatus';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 
 interface Recordatorio {
   id: number;
@@ -21,7 +19,7 @@ interface Recordatorio {
 
 interface NegocioResponse {
   modulo_recordatorios: boolean;
-  recordatorios: Recordatorio[];
+  recordatorios?: Recordatorio[]; // Hacer opcional para manejar casos donde no se devuelva
 }
 
 const RemindersPage: React.FC = () => {
@@ -35,6 +33,9 @@ const RemindersPage: React.FC = () => {
   const [pageMessage, setPageMessage] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState<number | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState<number | null>(null);
+  const [editReminder, setEditReminder] = useState<Recordatorio | null>(null);
 
   const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -42,9 +43,12 @@ const RemindersPage: React.FC = () => {
     if (negocioId !== null) {
       axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`)
         .then((res) => {
+          console.log('Respuesta de /api/negocio/:id:', res.data); // Log para depuración
           setModuloRecordatorios(!!res.data.modulo_recordatorios);
           if (res.data.recordatorios) {
             setReminders(res.data.recordatorios);
+          } else {
+            setReminders([]); // Aseguramos que el estado sea un array vacío si no hay recordatorios
           }
         })
         .catch((err) => {
@@ -65,7 +69,7 @@ const RemindersPage: React.FC = () => {
         message,
         frequency,
         time,
-        day,
+        day: frequency === 'once' ? new Date(day).toISOString().slice(0, 10) : day, // Formato estándar para 'once'
         activo: 1
       });
 
@@ -74,7 +78,7 @@ const RemindersPage: React.FC = () => {
         message,
         frequency,
         time,
-        day,
+        day: frequency === 'once' ? new Date(day).toISOString().slice(0, 10) : day,
         activo: true
       };
 
@@ -104,6 +108,11 @@ const RemindersPage: React.FC = () => {
       if (mesesInvalidos.length > 0) {
         showMessage(`⚠️ El día ${dayNum} no existe en: ${mesesInvalidos.join(', ')}. Ese mes no se enviará el recordatorio.`, 'error');
       }
+    }
+
+    if (frequency === 'once' && (!day || isNaN(Date.parse(day)) || new Date(day) < new Date())) {
+      showMessage('La fecha para un recordatorio único debe ser futura y válida', 'error');
+      return;
     }
 
     addReminder();
@@ -143,13 +152,57 @@ const RemindersPage: React.FC = () => {
   };
 
   const handleDeleteReminder = async (id: number) => {
+    setDeleteDialogOpen(null); // Cerrar diálogo tras confirmación
     try {
       await axios.delete(`http://localhost:3000/api/recordatorios/${id}`);
-      setReminders(reminders.filter(r => r.id !== id));
+      setReminders(reminders.filter(r => r.id !== id)); // Actualizar estado local
       showMessage('Recordatorio eliminado con éxito', 'success');
     } catch (err) {
+      console.error('Error al eliminar el recordatorio:', err); // Log detallado del error
       showMessage('Error al eliminar el recordatorio', 'error');
     }
+  };
+
+  const handleEditReminder = async () => {
+    if (!editReminder) return;
+    try {
+      await axios.put(`http://localhost:3000/api/recordatorios/${editReminder.id}`, {
+        message: editReminder.message,
+        frequency: editReminder.frequency,
+        time: editReminder.time,
+        day: editReminder.frequency === 'once' ? new Date(editReminder.day!).toISOString().slice(0, 10) : editReminder.day,
+        activo: editReminder.activo
+      });
+      setReminders(reminders.map(r => r.id === editReminder.id ? editReminder : r));
+      setEditDialogOpen(null);
+      showMessage('Recordatorio actualizado con éxito', 'success');
+    } catch (err) {
+      showMessage('Error al actualizar el recordatorio', 'error');
+    }
+  };
+
+  const getNextSendDate = (reminder: Recordatorio): string => {
+    const now = new Date();
+    const [hours, minutes] = reminder.time.split(':').map(Number);
+    let nextDate = new Date(now);
+    nextDate.setHours(hours, minutes, 0, 0);
+
+    if (reminder.frequency === 'daily') {
+      if (nextDate < now) nextDate.setDate(nextDate.getDate() + 1);
+    } else if (reminder.frequency === 'weekly') {
+      const dayIndex = weekDays.indexOf(reminder.day!);
+      while (nextDate.getDay() !== dayIndex || nextDate < now) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+    } else if (reminder.frequency === 'monthly') {
+      const dayNum = parseInt(reminder.day!);
+      nextDate.setDate(dayNum);
+      if (nextDate.getMonth() === now.getMonth() && nextDate < now) nextDate.setMonth(nextDate.getMonth() + 1);
+    } else if (reminder.frequency === 'once') {
+      nextDate = new Date(reminder.day!);
+      return nextDate < now ? 'Ya enviado' : nextDate.toLocaleString();
+    }
+    return nextDate.toLocaleString();
   };
 
   const groupedReminders = {
@@ -193,6 +246,17 @@ const RemindersPage: React.FC = () => {
             {frequency === 'monthly' && (
               <TextField label="Día del mes (1-31)" type="number" value={day} onChange={(e) => setDay(e.target.value)} fullWidth sx={{ mb: 2 }} />
             )}
+            {frequency === 'once' && (
+              <TextField
+                label="Fecha (YYYY-MM-DD)"
+                type="date"
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+                fullWidth
+                sx={{ mb: 2 }}
+                InputLabelProps={{ shrink: true }}
+              />
+            )}
             <TextField type="time" label="Horario" value={time} onChange={(e) => setTime(e.target.value)} fullWidth sx={{ mb: 2 }} />
             <Button onClick={handleAddReminder} variant="contained" color="primary">
               Añadir recordatorio
@@ -221,11 +285,14 @@ const RemindersPage: React.FC = () => {
                   >
                     <Box>
                       <Typography>{reminder.message}</Typography>
-                      <Typography variant="caption">{reminder.time} {reminder.day && `| Día: ${reminder.day}`}</Typography>
+                      <Typography variant="caption">{reminder.time} {reminder.day && `| Día: ${reminder.day}`} | Próximo: {getNextSendDate(reminder)}</Typography>
                     </Box>
                     <Box>
                       <Switch checked={reminder.activo} onChange={() => toggleReminder(reminder.id)} />
-                      <IconButton onClick={() => handleDeleteReminder(reminder.id)} color="error">
+                      <IconButton onClick={() => { setEditReminder(reminder); setEditDialogOpen(reminder.id); }} color="primary">
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton onClick={() => setDeleteDialogOpen(reminder.id)} color="error">
                         <DeleteIcon />
                       </IconButton>
                     </Box>
@@ -234,6 +301,90 @@ const RemindersPage: React.FC = () => {
               )}
             </Box>
           ))}
+
+          <Dialog open={deleteDialogOpen !== null} onClose={() => setDeleteDialogOpen(null)}>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                ¿Estás seguro de que querés eliminar este recordatorio?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDeleteDialogOpen(null)}>Cancelar</Button>
+              <Button onClick={() => handleDeleteReminder(deleteDialogOpen!)} color="error">Eliminar</Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog open={editDialogOpen !== null} onClose={() => { setEditDialogOpen(null); setEditReminder(null); }}>
+            <DialogTitle>Editar Recordatorio</DialogTitle>
+            <DialogContent>
+              <TextField
+                label="Mensaje"
+                value={editReminder?.message || ''}
+                onChange={(e) => setEditReminder({ ...editReminder!, message: e.target.value })}
+                fullWidth
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                select
+                label="Frecuencia"
+                value={editReminder?.frequency || 'daily'}
+                onChange={(e) => setEditReminder({ ...editReminder!, frequency: e.target.value })}
+                fullWidth
+                sx={{ mb: 2 }}
+              >
+                <MenuItem value="daily">Diario</MenuItem>
+                <MenuItem value="weekly">Semanal</MenuItem>
+                <MenuItem value="monthly">Mensual</MenuItem>
+                <MenuItem value="once">Único</MenuItem>
+              </TextField>
+              {editReminder?.frequency === 'weekly' && (
+                <TextField
+                  select
+                  label="Día de la semana"
+                  value={editReminder.day || ''}
+                  onChange={(e) => setEditReminder({ ...editReminder!, day: e.target.value })}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                >
+                  {weekDays.map(d => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+                </TextField>
+              )}
+              {editReminder?.frequency === 'monthly' && (
+                <TextField
+                  label="Día del mes (1-31)"
+                  type="number"
+                  value={editReminder.day || ''}
+                  onChange={(e) => setEditReminder({ ...editReminder!, day: e.target.value })}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                />
+              )}
+              {editReminder?.frequency === 'once' && (
+                <TextField
+                  label="Fecha (YYYY-MM-DD)"
+                  type="date"
+                  value={editReminder.day || ''}
+                  onChange={(e) => setEditReminder({ ...editReminder!, day: e.target.value })}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                  InputLabelProps={{ shrink: true }}
+                />
+              )}
+              <TextField
+                type="time"
+                label="Horario"
+                value={editReminder?.time || '09:00'}
+                onChange={(e) => setEditReminder({ ...editReminder!, time: e.target.value })}
+                fullWidth
+                sx={{ mb: 2 }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => { setEditDialogOpen(null); setEditReminder(null); }}>Cancelar</Button>
+              <Button onClick={handleEditReminder} color="primary">Guardar</Button>
+            </DialogActions>
+          </Dialog>
 
           <Snackbar
             open={snackbarOpen}
