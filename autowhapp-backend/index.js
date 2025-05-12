@@ -199,9 +199,9 @@ app.get('/api/negocio/:id', (req, res) => {
         res.json({
           ...row,
           reservas: reservas || [],
-          recordatorios: recordatorios || [], // Añadimos los recordatorios a la respuesta
+          recordatorios: recordatorios || [],
           modulo_reservas: row.modulo_reservas === 1,
-          modulo_recordatorios: row.modulo_recordatorios === 1, // Añadimos el estado del módulo
+          modulo_recordatorios: row.modulo_recordatorios === 1,
           appointmentDuration: row.appointment_duration,
           breakBetween: row.break_between,
           hora_inicio_default: row.hora_inicio_default,
@@ -361,7 +361,78 @@ app.put('/api/reservas/:negocioId', (req, res) => {
   );
 });
 
-// Otros endpoints (qrs, actualizar-estado-bot, etc.) permanecen sin cambios
+// Endpoint para eliminar pedidos
+app.delete('/api/pedidos/:negocioId/:pedidoId', (req, res) => {
+  const { negocioId, pedidoId } = req.params;
+  console.log(`Solicitud DELETE /api/pedidos/${negocioId}/${pedidoId}`);
+
+  db.get('SELECT * FROM pedidos WHERE id = ? AND negocio_id = ?', [pedidoId, negocioId], (err, pedido) => {
+    if (err) {
+      console.error('Error al verificar pedido:', err.message);
+      return res.status(500).json({ error: 'Error al verificar el pedido: ' + err.message });
+    }
+    if (!pedido) {
+      console.log(`Pedido ${pedidoId} no encontrado para negocio ${negocioId}`);
+      return res.status(404).json({ error: 'Pedido no encontrado o no pertenece a este negocio' });
+    }
+
+    db.run('DELETE FROM pedidos WHERE id = ? AND negocio_id = ?', [pedidoId, negocioId], function (err) {
+      if (err) {
+        console.error('Error al eliminar pedido:', err.message);
+        return res.status(500).json({ error: 'Error al eliminar el pedido: ' + err.message });
+      }
+      if (this.changes === 0) {
+        console.log(`Pedido ${pedidoId} no encontrado para negocio ${negocioId}`);
+        return res.status(404).json({ error: 'Pedido no encontrado o no pertenece a este negocio' });
+      }
+      console.log(`Pedido ${pedidoId} eliminado con éxito para negocio ${negocioId}`);
+      res.json({ success: true });
+    });
+  });
+});
+
+// Endpoint para actualizar el estado de un pedido
+app.put('/api/pedido/:id/estado', (req, res) => {
+  const { estado } = req.body;
+  console.log(`Solicitud PUT /api/pedido/${req.params.id}/estado:`, { estado });
+
+  db.run('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id], async (err) => {
+    if (err) {
+      console.error('Error al actualizar estado del pedido:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    const pedido = await new Promise((resolve) => db.get('SELECT * FROM pedidos WHERE id = ?', [req.params.id], (e, r) => resolve(r)));
+    const mensaje = await new Promise((resolve) => db.get('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = ? AND tipo = ?', [pedido.negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.mensaje)));
+    console.log(`Mensaje recuperado para estado ${estado}: ${mensaje}`);
+    if (mensaje && clients[pedido.negocio_id]?.client) {
+      console.log(`Buscando grupo "Prueba Autowhapp" para negocio ${pedido.negocio_id}`);
+      let grupo;
+      const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = ?', [pedido.negocio_id], (err, row) => resolve(row)));
+      if (negocio && negocio.grupo_id) {
+        try {
+          grupo = await clients[pedido.negocio_id].client.getChatById(negocio.grupo_id);
+          console.log(`✅ Chat del grupo obtenido: ${grupo.name}`);
+        } catch (err) {
+          console.error('❌ Error al obtener chat por ID:', err.message);
+        }
+      }
+      if (!grupo) {
+        const chats = await clients[pedido.negocio_id].client.getChats();
+        grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
+      }
+      if (grupo) {
+        console.log(`Enviando mensaje al grupo ${grupo.id._serialized}: ${mensaje}`);
+        await clients[pedido.negocio_id].client.sendMessage(grupo.id._serialized, mensaje);
+      } else {
+        console.error(`❌ No se encontró el grupo "Prueba Autowhapp" para negocio ${pedido.negocio_id}`);
+      }
+    }
+    console.log(`Estado del pedido ${req.params.id} actualizado a: ${estado}`);
+    res.json({ success: true });
+  });
+});
+
+// Otros endpoints
 app.get('/api/qrs', (req, res) => {
   db.all('SELECT id, nombre FROM negocios', [], (err, negocios) => {
     if (err) {
@@ -457,7 +528,6 @@ app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
   });
 });
 
-// Otros endpoints (negocios, faqs, productos, mensajes_pedidos, pedidos) permanecen sin cambios
 app.post('/api/negocios', (req, res) => {
   const {
     nombre,
@@ -698,6 +768,7 @@ app.post('/api/mensajes-pedidos', (req, res) => {
       db.run('INSERT OR REPLACE INTO mensajes_pedidos (negocio_id, tipo, mensaje) VALUES (?, ?, ?)',
         [negocio_id, tipo, mensajes[tipo]], (err) => {
           if (err) console.error('Error al insertar mensaje de pedido:', err.message);
+          else console.log(`Mensaje para ${tipo} actualizado: ${mensajes[tipo]}`);
         });
     });
     console.log('Mensajes de pedidos actualizados con éxito');
@@ -727,161 +798,40 @@ app.get('/api/pedidos/:negocioId', (req, res) => {
   });
 });
 
-app.put('/api/pedido/:id/estado', (req, res) => {
-  const { estado } = req.body;
-  console.log(`Solicitud PUT /api/pedido/${req.params.id}/estado:`, { estado });
-
-  db.run('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id], async (err) => {
-    if (err) {
-      console.error('Error al actualizar estado del pedido:', err.message);
-      return res.status(500).json({ error: err.message });
-    }
-    const pedido = await new Promise((resolve) => db.get('SELECT * FROM pedidos WHERE id = ?', [req.params.id], (e, r) => resolve(r)));
-    const mensaje = await new Promise((resolve) => db.get('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = ? AND tipo = ?', [pedido.negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.mensaje)));
-    if (mensaje && clients[pedido.negocio_id]?.client) {
-      console.log(`Enviando mensaje al cliente ${pedido.numero_cliente}:`, mensaje);
-      clients[pedido.negocio_id].client.sendMessage(pedido.numero_cliente, mensaje);
-    }
-    console.log(`Estado del pedido ${req.params.id} actualizado a:`, estado);
-    res.json({ success: true });
-  });
-});
-
-// Crear nuevo recordatorio
-app.post('/api/recordatorios/:negocioId', (req, res) => {
+app.post('/api/pedidos/:negocioId', (req, res) => {
   const { negocioId } = req.params;
-  const { message, frequency, time, day = '', activo = 1 } = req.body;
+  const { numero_cliente, items } = req.body;
+  console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items });
 
-  if (!message || !frequency || !time) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  if (!negocioId || !numero_cliente || !items || !Array.isArray(items) || items.length === 0) {
+    console.log('Faltan campos obligatorios o items no válidos');
+    return res.status(400).json({ error: 'negocioId, numero_cliente y items son requeridos' });
   }
 
+  const itemsString = JSON.stringify(items);
+
   db.run(
-    `INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo) VALUES (?, ?, ?, ?, ?, ?)`,
-    [negocioId, message, frequency, time, day, activo],
+    'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES (?, ?, ?, ?)',
+    [negocioId, numero_cliente, itemsString, 'recibido'],
     function (err) {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.error('Error al registrar pedido:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log('Pedido registrado con éxito, ID:', this.lastID);
       res.json({ success: true, id: this.lastID });
     }
   );
 });
 
-// Actualizar un recordatorio
-app.put('/api/recordatorios/:id', (req, res) => {
-  const { id } = req.params;
-  const { message, frequency, time, day, activo } = req.body;
+// Servir archivos estáticos
+app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-  if (!message || !frequency || !time) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios: message, frequency y time son requeridos' });
-  }
-
-  // Obtener el recordatorio actual para comparar la hora
-  db.get('SELECT time FROM recordatorios WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      console.error('Error al obtener recordatorio actual:', err.message);
-      return res.status(500).json({ error: err.message });
-    }
-    if (!row) {
-      return res.status(404).json({ error: 'Recordatorio no encontrado' });
-    }
-
-    const currentTime = row.time;
-    const isTimeChanged = currentTime !== time;
-
-    // Si la hora cambió, restablecer last_sent
-    const lastSentUpdate = isTimeChanged ? null : row.last_sent;
-
-    db.run(
-      `UPDATE recordatorios SET message = ?, frequency = ?, time = ?, day = ?, activo = ?, last_sent = ? WHERE id = ?`,
-      [message, frequency, time, day || '', activo ? 1 : 0, lastSentUpdate, id],
-      function (err) {
-        if (err) {
-          console.error('Error al actualizar recordatorio:', err.message);
-          return res.status(500).json({ error: err.message });
-        }
-        if (this.changes === 0) {
-          return res.status(404).json({ error: 'Recordatorio no encontrado' });
-        }
-        console.log(`Recordatorio ${id} actualizado con éxito`);
-        res.json({ success: true });
-      }
-    );
-  });
-});
-
-// Eliminar un recordatorio
-app.delete('/api/recordatorios/:id', (req, res) => {
-  const { id } = req.params;
-
-  db.run(`DELETE FROM recordatorios WHERE id = ?`, [id], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
-  });
-});
-
-// Activar o desactivar un recordatorio
-app.put('/api/recordatorios/:id/activo', (req, res) => {
-  const { id } = req.params;
-  const { activo } = req.body;
-
-  db.run(`UPDATE recordatorios SET activo = ? WHERE id = ?`, [activo, id], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
-  });
-});
-
-app.use(express.static(path.join(__dirname, '../autowhapp-dashboard/build')));
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../autowhapp-dashboard/build', 'index.html'));
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
-// Endpoint para registrar pedidos
-app.post('/api/pedidos/:negocioId', (req, res) => {
-  const { negocioId } = req.params;
-  const { numero_cliente, items, estado = 'recibido' } = req.body;
-  console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items, estado });
-
-  if (!numero_cliente || !items || !Array.isArray(items) || items.length === 0) {
-    console.log('Faltan campos obligatorios: numero_cliente o items (debe ser un array no vacío)');
-    return res.status(400).json({ error: 'numero_cliente e items (array no vacío) son requeridos' });
-  }
-
-  // Validar que cada item tenga nombre y cantidad
-  const invalidItems = items.filter(item => !item.nombre || item.cantidad == null || isNaN(item.cantidad) || item.cantidad <= 0);
-  if (invalidItems.length > 0) {
-    console.log('Items inválidos encontrados:', invalidItems);
-    return res.status(400).json({ error: 'Todos los items deben tener nombre y cantidad válida (> 0)' });
-  }
-
-  db.get('SELECT modulo_pedidos FROM negocios WHERE id = ?', [negocioId], (err, row) => {
-    if (err) {
-      console.error('Error al verificar negocio:', err.message);
-      return res.status(500).json({ error: err.message });
-    }
-    if (!row || row.modulo_pedidos !== 1) {
-      console.log('Módulo de pedidos no activo para negocio:', negocioId);
-      return res.status(403).json({ error: 'Módulo de pedidos no activo' });
-    }
-
-    // Convertir el array de items a JSON
-    const itemsJson = JSON.stringify(items);
-    console.log('Items JSON a insertar:', itemsJson);
-
-    db.run(
-      'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES (?, ?, ?, ?)',
-      [negocioId, numero_cliente, itemsJson, estado],
-      function (err) {
-        if (err) {
-          console.error('Error al registrar pedido:', err.message);
-          return res.status(500).json({ error: err.message });
-        }
-        console.log('Pedido registrado con éxito, ID:', this.lastID);
-        res.json({ success: true, id: this.lastID });
-      }
-    );
-  });
-});
-
-app.listen(3000, '0.0.0.0', () => {
-  console.log('Backend corriendo en puerto 3000');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

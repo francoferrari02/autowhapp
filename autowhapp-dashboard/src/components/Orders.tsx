@@ -3,6 +3,7 @@ import { Card, CardContent, Typography, Button, TextField, Box, Modal, Switch, F
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { Order } from '../types';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
@@ -11,7 +12,7 @@ const BotStatusPedido: React.FC<{ active: boolean; onToggle: () => void }> = ({ 
   <FormControlLabel
     control={<Switch checked={active} onChange={onToggle} color="primary" />}
     label={active ? "Módulo Pedido Activado" : "Módulo Pedido Desactivado"}
-    sx={{ fontWeight: 'bold', userSelect: 'none' }}
+    sx={{ fontWeight: 'bold', userSelect: 'none', fontFamily: 'Poppins, sans-serif' }}
   />
 );
 
@@ -21,19 +22,16 @@ const Orders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<'Todos' | 'Recibidos' | 'Enviados'>('Todos');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [products, setProducts] = useState<{ id: number; nombre: string; precio: number }[]>([]); // Estado para los productos
-
+  const [products, setProducts] = useState<{ id: number; nombre: string; precio: number }[]>([]);
   const [messages, setMessages] = useState({
     recibido: 'Tu pedido ha sido recibido, te avisaremos pronto...',
     preparando: 'Tu pedido está siendo preparado.',
     enviado: 'Tu pedido está listo y en camino.',
   });
-
   const [openModal, setOpenModal] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [message, setMessage] = useState<string>('');
 
-  // Cargar productos al montar el componente
   useEffect(() => {
     if (negocioId !== null) {
       axios
@@ -48,15 +46,12 @@ const Orders: React.FC = () => {
     }
   }, [negocioId]);
 
-  // Cargar pedidos y mensajes al montar el componente
   useEffect(() => {
     if (negocioId !== null && products.length > 0) {
-      // Cargar pedidos
       axios
         .get(`http://localhost:3000/api/pedidos/${negocioId}`)
         .then((res) => {
           const pedidos: Order[] = (res.data as any[]).map((pedido: any) => {
-            // Parsear el campo items (es un JSON string)
             let itemsParsed: { nombre: string; cantidad: number }[] = [];
             try {
               itemsParsed = JSON.parse(pedido.items);
@@ -65,18 +60,20 @@ const Orders: React.FC = () => {
               itemsParsed = [];
             }
 
-            // Calcular el total
             const total = itemsParsed.reduce((sum, item) => {
               const product = products.find((p) => p.nombre === item.nombre);
               const price = product ? product.precio : 0;
               return sum + price * item.cantidad;
             }, 0);
 
-            // Formatear la fecha created_at
             let formattedTime = 'Desconocido';
             if (pedido.created_at) {
-              const date = new Date(pedido.created_at);
-              formattedTime = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+              const date = new Date(pedido.created_at + 'Z'); // Asumimos UTC
+              formattedTime = date.toLocaleTimeString('es-AR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'America/Argentina/Buenos_Aires',
+              });
             }
 
             return {
@@ -85,9 +82,9 @@ const Orders: React.FC = () => {
               status: pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1),
               client: 'Desconocido',
               phone: pedido.numero_cliente,
-              items: itemsParsed, // Guardamos la lista de ítems
-              total: total, // Total calculado
-              cantidad: '', // Ya no usamos este campo
+              items: itemsParsed,
+              total: total,
+              cantidad: '',
             };
           });
           setOrders(pedidos);
@@ -97,7 +94,6 @@ const Orders: React.FC = () => {
           setMessage('Error al cargar pedidos');
         });
 
-      // Cargar mensajes personalizados
       axios
         .get(`http://localhost:3000/api/mensajes-pedidos/${negocioId}`)
         .then((res) => {
@@ -134,6 +130,23 @@ const Orders: React.FC = () => {
       })
       .then(() => {
         setMessage('Mensajes guardados con éxito');
+        // Forzar recarga de mensajes
+        axios
+          .get(`http://localhost:3000/api/mensajes-pedidos/${negocioId}`)
+          .then((res) => {
+            const mensajesGuardados = (res.data as { tipo: string; mensaje: string }[]).reduce((acc: any, msg: any) => {
+              acc[msg.tipo] = msg.mensaje;
+              return acc;
+            }, {});
+            setMessages((prev) => ({
+              ...prev,
+              ...mensajesGuardados,
+            }));
+          })
+          .catch((err) => {
+            console.error('Error al recargar mensajes:', err);
+            setMessage('Error al recargar mensajes');
+          });
       })
       .catch((err) => {
         console.error('Error al guardar mensajes:', err);
@@ -175,6 +188,24 @@ const Orders: React.FC = () => {
       });
   };
 
+  const deleteOrder = (orderId: number) => {
+    if (negocioId === null) {
+      setMessage('Error: Negocio no identificado');
+      return;
+    }
+
+    axios
+      .delete(`http://localhost:3000/api/pedidos/${negocioId}/${orderId}`)
+      .then(() => {
+        setOrders((prevOrders) => prevOrders.filter((order) => order.id !== orderId));
+        setMessage(`Pedido ${orderId} eliminado con éxito`);
+      })
+      .catch((err) => {
+        console.error('Error al eliminar pedido:', err);
+        setMessage('Error al eliminar pedido');
+      });
+  };
+
   const addNewOrder = () => {
     if (negocioId === null) {
       setMessage('Error: Negocio no identificado');
@@ -196,9 +227,17 @@ const Orders: React.FC = () => {
           return sum + price * item.cantidad;
         }, 0);
 
+        // Crear la fecha en la zona horaria de Argentina
+        const now = new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' });
+        const date = new Date(now);
+
         const createdOrder: Order = {
           id: (res.data as { id: number }).id || orders.length + 1,
-          time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+          time: date.toLocaleTimeString('es-AR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'America/Argentina/Buenos_Aires',
+          }),
           status: 'Recibido',
           client: 'Desconocido',
           phone: newOrder.numeroCliente,
@@ -241,8 +280,12 @@ const Orders: React.FC = () => {
 
           let formattedTime = 'Desconocido';
           if (pedido.created_at) {
-            const date = new Date(pedido.created_at);
-            formattedTime = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+            const date = new Date(pedido.created_at + 'Z'); // Asumimos UTC
+            formattedTime = date.toLocaleTimeString('es-AR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'America/Argentina/Buenos_Aires',
+            });
           }
 
           return {
@@ -275,14 +318,14 @@ const Orders: React.FC = () => {
     .filter((order) => (order.phone || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 1000, mx: 'auto', fontFamily: 'Poppins, sans-serif' }}>
       <Card sx={{ p: 3, mb: 4, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: 2 }}>
         <TextField
           label="Mensaje Pedido Recibido"
           fullWidth
           multiline
           rows={2}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}
           value={messages.recibido}
           onChange={(e) => handleMessageChange('recibido', e.target.value)}
         />
@@ -291,7 +334,7 @@ const Orders: React.FC = () => {
           fullWidth
           multiline
           rows={2}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, fontFamily: 'Poppins, sans-serif' }}
           value={messages.preparando}
           onChange={(e) => handleMessageChange('preparando', e.target.value)}
         />
@@ -300,13 +343,13 @@ const Orders: React.FC = () => {
           fullWidth
           multiline
           rows={2}
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, fontFamily: 'Poppins, sans-serif' }}
           value={messages.enviado}
           onChange={(e) => handleMessageChange('enviado', e.target.value)}
         />
         <Button
           variant="contained"
-          sx={{ backgroundColor: '#34C759', '&:hover': { backgroundColor: '#2EA44F' }, borderRadius: 2 }}
+          sx={{ backgroundColor: '#34C759', '&:hover': { backgroundColor: '#2EA44F' }, borderRadius: 2, fontFamily: 'Poppins, sans-serif' }}
           onClick={saveMessages}
         >
           Guardar Mensajes
@@ -318,7 +361,7 @@ const Orders: React.FC = () => {
           placeholder="Buscar pedidos por teléfono..."
           variant="outlined"
           InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1 }} /> }}
-          sx={{ width: 300 }}
+          sx={{ width: 300, fontFamily: 'Poppins, sans-serif' }}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -333,6 +376,7 @@ const Orders: React.FC = () => {
                 color: filter === f ? '#FFFFFF' : '#1E3A8A',
                 '&:hover': { backgroundColor: '#153E6F', color: '#FFFFFF' },
                 borderRadius: 2,
+                fontFamily: 'Poppins, sans-serif',
               }}
               onClick={() => setFilter(f as any)}
             >
@@ -342,7 +386,7 @@ const Orders: React.FC = () => {
           <Button
             startIcon={<RefreshIcon />}
             variant="contained"
-            sx={{ mr: 1, backgroundColor: '#1E3A8A', '&:hover': { backgroundColor: '#153E6F' }, borderRadius: 2 }}
+            sx={{ mr: 1, backgroundColor: '#1E3A8A', '&:hover': { backgroundColor: '#153E6F' }, borderRadius: 2, fontFamily: 'Poppins, sans-serif' }}
             onClick={refreshOrders}
           >
             Actualizar
@@ -350,7 +394,7 @@ const Orders: React.FC = () => {
           <Button
             startIcon={<AddIcon />}
             variant="contained"
-            sx={{ backgroundColor: '#34C759', '&:hover': { backgroundColor: '#2EA44F' }, borderRadius: 2 }}
+            sx={{ backgroundColor: '#34C759', '&:hover': { backgroundColor: '#2EA44F' }, borderRadius: 2, fontFamily: 'Poppins, sans-serif' }}
             onClick={addNewOrder}
           >
             Nuevo Pedido
@@ -359,13 +403,35 @@ const Orders: React.FC = () => {
       </Box>
 
       {filteredOrders.map((order) => (
-        <Card key={order.id} sx={{ boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: 2, mb: 2, p: 2 }}>
-          <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Card key={order.id} sx={{ boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: 2, mb: 2, display: 'flex', alignItems: 'center' }}>
+          <Box
+            sx={{
+              width: 6,
+              height: '100%',
+              backgroundColor:
+                order.status === 'Recibido' ? '#9CA3AF' : order.status === 'Preparando' ? '#F59E0B' : '#34C759',
+              borderRadius: '4px 0 0 4px',
+            }}
+          />
+          <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <Box>
-              <Typography sx={{ fontWeight: 'bold' }}>Pedido {order.id}</Typography>
-              <Typography color="text.secondary">{order.time}</Typography>
+              <Typography sx={{ fontWeight: 'bold', fontFamily: 'Poppins, sans-serif' }}>Pedido {order.id}</Typography>
+              <Typography sx={{ fontFamily: 'Poppins, sans-serif' }} color="text.secondary">
+                Hora: {order.time}
+              </Typography>
+              <Typography sx={{ fontWeight: 'bold', fontFamily: 'Poppins, sans-serif' }} mt={1}>
+                Productos:
+              </Typography>
+              {order.items.map((item, index) => (
+                <Typography key={index} sx={{ fontFamily: 'Poppins, sans-serif' }}>
+                  • {item.nombre} - Cantidad: {item.cantidad}
+                </Typography>
+              ))}
+              <Typography sx={{ fontWeight: 'bold', fontFamily: 'Poppins, sans-serif' }} mt={1}>
+                Total: ${order.total.toFixed(2)}
+              </Typography>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
               {['Recibido', 'Preparando', 'Enviado'].map((status) => (
                 <Button
                   key={status}
@@ -384,6 +450,7 @@ const Orders: React.FC = () => {
                     minWidth: 90,
                     fontWeight: order.status === status ? '600' : 'normal',
                     fontSize: '0.875rem',
+                    fontFamily: 'Poppins, sans-serif',
                   }}
                 >
                   {status}
@@ -391,10 +458,18 @@ const Orders: React.FC = () => {
               ))}
               <Button
                 variant="contained"
-                sx={{ backgroundColor: '#1E3A8A', '&:hover': { backgroundColor: '#153E6F' }, borderRadius: 2 }}
+                sx={{ backgroundColor: '#1E3A8A', '&:hover': { backgroundColor: '#153E6F' }, borderRadius: 2, fontFamily: 'Poppins, sans-serif' }}
                 onClick={() => handleOpenModal(order)}
               >
                 Ver Detalles
+              </Button>
+              <Button
+                startIcon={<DeleteIcon />}
+                variant="contained"
+                sx={{ backgroundColor: '#EF4444', '&:hover': { backgroundColor: '#DC2626' }, borderRadius: 2, fontFamily: 'Poppins, sans-serif' }}
+                onClick={() => deleteOrder(order.id)}
+              >
+                Eliminar
               </Button>
             </Box>
           </CardContent>
@@ -413,33 +488,42 @@ const Orders: React.FC = () => {
             boxShadow: 24,
             p: 4,
             borderRadius: 2,
+            fontFamily: 'Poppins, sans-serif',
           }}
         >
-          <Typography variant="h6" fontWeight="bold" mb={2}>
+          <Typography variant="h6" fontWeight="bold" mb={2} fontFamily="Poppins, sans-serif">
             Detalles del Pedido
           </Typography>
           {selectedOrder && (
             <>
-              <Typography>Cliente: {selectedOrder.client}</Typography>
-              <Typography>Teléfono: {selectedOrder.phone}</Typography>
-              <Typography fontWeight="bold" mt={1}>Productos:</Typography>
+              <Typography fontFamily="Poppins, sans-serif">Cliente: {selectedOrder.client}</Typography>
+              <Typography fontFamily="Poppins, sans-serif">Teléfono: {selectedOrder.phone}</Typography>
+              <Typography fontWeight="bold" mt={1} fontFamily="Poppins, sans-serif">
+                Productos:
+              </Typography>
               {selectedOrder.items.length > 0 ? (
                 selectedOrder.items.map((item, index) => (
-                  <Typography key={index}>
-                    {item.nombre} - {item.cantidad}
+                  <Typography key={index} fontFamily="Poppins, sans-serif">
+                    • {item.nombre} - Cantidad: {item.cantidad}
                   </Typography>
                 ))
               ) : (
-                <Typography>N/A</Typography>
+                <Typography fontFamily="Poppins, sans-serif">N/A</Typography>
               )}
-              <Typography fontWeight="bold" mt={1}>Total: ${selectedOrder.total.toFixed(2)}</Typography>
+              <Typography fontWeight="bold" mt={1} fontFamily="Poppins, sans-serif">
+                Total: ${selectedOrder.total.toFixed(2)}
+              </Typography>
             </>
           )}
         </Box>
       </Modal>
 
       {message && (
-        <Typography color={message.includes('Error') ? 'error' : 'success.main'} mt={2}>
+        <Typography
+          color={message.includes('Error') ? 'error' : 'success.main'}
+          mt={2}
+          fontFamily="Poppins, sans-serif"
+        >
           {message}
         </Typography>
       )}

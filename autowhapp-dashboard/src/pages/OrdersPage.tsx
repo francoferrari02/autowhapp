@@ -3,7 +3,7 @@ import { Box } from '@mui/material';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import Orders from '../components/Orders';
-import ModuleStatus from '../components/ModuleStatus'; // Updated import
+import ModuleStatus from '../components/ModuleStatus';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 
@@ -36,7 +36,7 @@ const OrdersPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh' }}>
+    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', fontFamily: 'Poppins, sans-serif' }}>
       <Header />
       <Box display="flex">
         <Sidebar selected="orders" />
