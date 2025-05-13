@@ -776,6 +776,128 @@ app.post('/api/mensajes-pedidos', (req, res) => {
   });
 });
 
+// Endpoint para crear un recordatorio
+app.post('/api/recordatorios/:negocioId', (req, res) => {
+  const { negocioId } = req.params;
+  const { message, frequency, time, day, activo = 1 } = req.body;
+  console.log('Datos recibidos en POST /api/recordatorios/:negocioId:', { negocioId, message, frequency, time, day, activo });
+
+  if (!message || !frequency || !time) {
+    console.log('Faltan campos obligatorios: message, frequency o time');
+    return res.status(400).json({ error: 'message, frequency y time son requeridos' });
+  }
+
+  // Validar el formato de time (HH:MM)
+  const [hours, minutes] = time.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    console.log('Formato de hora inválido:', time);
+    return res.status(400).json({ error: 'El formato de hora debe ser HH:MM válido' });
+  }
+
+  // Ajustar day según la frecuencia
+  const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
+
+  db.run(
+    'INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo, last_sent) VALUES (?, ?, ?, ?, ?, ?, NULL)',
+    [negocioId, message, frequency, time, normalizedDay, activo ? 1 : 0],
+    function (err) {
+      if (err) {
+        console.error('Error al crear recordatorio:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log('Recordatorio creado con éxito, ID:', this.lastID);
+      res.json({ success: true, id: this.lastID });
+    }
+  );
+});
+
+// Endpoint para actualizar un recordatorio
+app.put('/api/recordatorios/:id', (req, res) => {
+  const { id } = req.params;
+  const { message, frequency, time, day, activo = 1 } = req.body;
+  console.log('Datos recibidos en PUT /api/recordatorios/:id:', { id, message, frequency, time, day, activo });
+
+  if (!message || !frequency || !time) {
+    console.log('Faltan campos obligatorios: message, frequency o time');
+    return res.status(400).json({ error: 'message, frequency y time son requeridos' });
+  }
+
+  // Validar el formato de time (HH:MM)
+  const [hours, minutes] = time.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    console.log('Formato de hora inválido:', time);
+    return res.status(400).json({ error: 'El formato de hora debe ser HH:MM válido' });
+  }
+
+  // Ajustar day según la frecuencia
+  const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
+
+  db.run(
+    'UPDATE recordatorios SET message = ?, frequency = ?, time = ?, day = ?, activo = ? WHERE id = ?',
+    [message, frequency, time, normalizedDay, activo ? 1 : 0, id],
+    function (err) {
+      if (err) {
+        console.error('Error al actualizar recordatorio:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        console.log('Recordatorio no encontrado:', id);
+        return res.status(404).json({ error: 'Recordatorio no encontrado' });
+      }
+      console.log('Recordatorio actualizado con éxito, ID:', id);
+      res.json({ success: true });
+    }
+  );
+});
+
+// Endpoint para activar/desactivar un recordatorio
+app.put('/api/recordatorios/:id/activo', (req, res) => {
+  const { id } = req.params;
+  const { activo } = req.body;
+  console.log('Datos recibidos en PUT /api/recordatorios/:id/activo:', { id, activo });
+
+  if (activo === undefined) {
+    console.log('Falta el campo obligatorio: activo');
+    return res.status(400).json({ error: 'activo es requerido' });
+  }
+
+  db.run(
+    'UPDATE recordatorios SET activo = ? WHERE id = ?',
+    [activo ? 1 : 0, id],
+    function (err) {
+      if (err) {
+        console.error('Error al actualizar estado del recordatorio:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        console.log('Recordatorio no encontrado:', id);
+        return res.status(404).json({ error: 'Recordatorio no encontrado' });
+      }
+      console.log('Estado del recordatorio actualizado con éxito, ID:', id);
+      res.json({ success: true });
+    }
+  );
+});
+
+// Endpoint para eliminar un recordatorio
+app.delete('/api/recordatorios/:id', (req, res) => {
+  const { id } = req.params;
+  console.log('Solicitud DELETE /api/recordatorios/:id:', { id });
+
+  db.run('DELETE FROM recordatorios WHERE id = ?', [id], function (err) {
+    if (err) {
+      console.error('Error al eliminar recordatorio:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      console.log('Recordatorio no encontrado:', id);
+      return res.status(404).json({ error: 'Recordatorio no encontrado' });
+    }
+    console.log('Recordatorio eliminado con éxito, ID:', id);
+    res.json({ success: true });
+  });
+});
+
 app.get('/api/mensajes-pedidos/:negocioId', (req, res) => {
   console.log(`Solicitud GET /api/mensajes-pedidos/${req.params.negocioId}`);
   db.all('SELECT * FROM mensajes_pedidos WHERE negocio_id = ?', [req.params.negocioId], (err, rows) => {
