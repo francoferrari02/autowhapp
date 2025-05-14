@@ -5,6 +5,7 @@ import AddBusinessPage from './pages/AddBusinessPage';
 import ReservationsPage from './pages/ReservationsPage';
 import RemindersPage from './pages/RemindersPage';
 import { NegocioProvider } from './NegocioContext';
+import AnalyticsPage from './pages/AnalyticsPage';  
 
 const App: React.FC = () => {
   return (
@@ -16,6 +17,7 @@ const App: React.FC = () => {
           <Route path="/add-business" element={<AddBusinessPage />} />
           <Route path="/reservations" element={<ReservationsPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<div>404 - Página no encontrada</div>} />
         </Routes>
       </Router>
