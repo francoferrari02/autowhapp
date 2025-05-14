@@ -38,5 +38,7 @@ AutoWhapp es un proyecto que implementa un chatbot automatizado para WhatsApp, c
 - te deberia ofrecer de correr el dashboard en el puerto 3001
 
 
+## Tests
+- Desde root, corre `npx playwright test --ui` y elige los tests que quieras correr
 
 
