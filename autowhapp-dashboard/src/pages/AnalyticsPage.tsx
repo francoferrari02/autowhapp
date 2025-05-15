@@ -9,41 +9,45 @@ import { useNegocio } from '../NegocioContext';
 // Función para obtener el mes y año actual
 const getCurrentMonthYear = () => {
   const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 2).padStart(2, '0')}`;
 };
 
 const AnalyticsPage: React.FC = () => {
   const { negocioId } = useNegocio();
-  const [ventasData, setVentasData] = useState<any[]>([]);
-  const [reservasData, setReservasData] = useState<any[]>([]);
   const [ingresos, setIngresos] = useState<number>(0);
   const [totalVentas, setTotalVentas] = useState<number>(0);
   const [totalReservas, setTotalReservas] = useState<number>(0);
+  const [productosVendidos, setProductosVendidos] = useState<string[]>([]);
+  const [cantProductoVendido, setCantProductoVendido] = useState<number[]>([]);
+  const [ventasPorSemana, setVentasPorSemana] = useState<string[]>([]);
+  const [cantVentasEnSemana, setCantVentasEnSemana] = useState<number[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentMonthYear());
   const [error, setError] = useState<string | null>(null);
 
   // Función para obtener datos basada en la fecha seleccionada
   const fetchData = (date: string) => {
     if (negocioId) {
+        
       const [year, month] = date.split('-');
-      axios.get<{ name: string; ventas: number }[]>(`/api/ventas/${negocioId}?year=${year}&month=${month}`).then(res => {
-        setVentasData(res.data);
-        setTotalVentas(res.data.length);
+      axios.get<{ count: number }>(`/api/cantVentas/${negocioId}?year=${year}&month=${month}`).then(res => {
+        setTotalVentas(res.data.count);
+        setError('Los parametros no dependen del mes y año. Y en ingresos no cuenta la cantidad de productos vendidos, solo cuales');
       }).catch(err => {
         console.error('Error al obtener ventas:', err);
         setError('No se pudieron cargar las ventas');
       });
 
-      axios.get<{ id: number; cliente: string; fecha: string }[]>(`/api/reservas/${negocioId}?year=${year}&month=${month}`).then(res => {
-        setReservasData(res.data);
-        setTotalReservas(res.data.length);
+      
+      axios.get<{ count: number }>(`/api/cantReservas/${negocioId}?year=${year}&month=${month}`).then(res => {
+        setTotalReservas(res.data.count);
       }).catch(err => {
         console.error('Error al obtener reservas:', err);
         setError('No se pudieron cargar las reservas');
       });
-
+      
       axios.get<{ total: number }>(`/api/ingresos/${negocioId}?year=${year}&month=${month}`).then(res => {
         setIngresos(res.data.total);
+        //setError('Ingresos no muestra segun mes y año, ni cantidad de productos');
       }).catch(err => {
         console.error('Error al obtener ingresos:', err);
         setError('No se pudieron cargar los ingresos');
@@ -51,9 +55,51 @@ const AnalyticsPage: React.FC = () => {
     }
   };
 
+
+
   useEffect(() => {
     fetchData(selectedDate);
   }, [negocioId, selectedDate]);
+
+  const getProductosVendidos = () => {
+        if (negocioId) {
+            axios.get<{ productosVendidos: Record<string, number> }>(`/api/productosVendidos/${negocioId}`)
+            .then(res => {
+                const conteo = res.data.productosVendidos;
+                const nombres = Object.keys(conteo);
+                const cantidades = nombres.map(nombre => conteo[nombre]);
+
+                setProductosVendidos(nombres); 
+                setCantProductoVendido(cantidades);
+            })
+            .catch(err => {
+                console.error('Error al obtener productos vendidos:', err);
+                setError('No se pudieron cargar los productos vendidos');
+            });
+
+        }
+    }
+
+    const getVentasPorSemana = () => {
+        if (negocioId) {
+            axios.get<{ ventasPorSemana: number[]  }>(`/api/ventasPorSemana/${negocioId}`)
+            .then(res => {
+                setCantVentasEnSemana(res.data.ventasPorSemana);
+            })
+            .catch(err => {
+                console.error('Error al obtener ventas por semana:', err);
+                setError('No se pudieron cargar las ventas por semana');
+            });
+        }
+    }
+
+    useEffect(() => {
+        getProductosVendidos();
+    });
+
+    useEffect(() => {
+        getVentasPorSemana();
+    });
 
   // Generar opciones de mes y año (últimos 12 meses)
   const generateDateOptions = () => {
@@ -62,7 +108,7 @@ const AnalyticsPage: React.FC = () => {
     for (let i = 0; i < 12; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const month = String(date.getMonth() + 2).padStart(2, '0');
       options.push(`${year}-${month}`);
     }
     return options;
@@ -70,22 +116,23 @@ const AnalyticsPage: React.FC = () => {
 
   const dateOptions = generateDateOptions();
 
+
   // Datos de ejemplo para gráficos (reemplazar con datos reales)
   const frecuenciaVentas = [
+    //{ name: ventasPorSemana[0], ventas: cantVentasEnSemana[0] },
+    //{ name: 'Semana 0', ventas: cantVentasEnSemana[1] },
     { name: 'Semana 1', ventas: 10 },
     { name: 'Semana 2', ventas: 15 },
     { name: 'Semana 3', ventas: 20 },
-    { name: 'Semana 4', ventas: 25 },
+    { name: 'Semana 4', ventas: 12 },
   ];
 
-  const pastelData = [
-    { name: 'Categoría A', value: 400 },
-    { name: 'Categoría B', value: 300 },
-    { name: 'Categoría C', value: 300 },
-    { name: 'Categoría D', value: 200 },
-  ];
+    const pastelData = productosVendidos.map((nombre, i) => ({
+        name: nombre,
+        value: cantProductoVendido[i]
+    }));
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#FF6384', '#36A2EB', '#FFCE56'];
 
   return (
     <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh' }}>
