@@ -299,6 +299,28 @@ app.post('/api/reservas/:negocioId', (req, res) => {
   });
 });
 
+app.get('/api/cantReservas/:negocioId', (req, res) => {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+
+    console.log('Solicitud POST /api/cantReservas/${negocioId})');
+
+    if (!negocioId) {
+        return res.status(400).json({ error: 'negocioId es requerido' });
+    }
+
+    db.get(
+        'SELECT count(*) as count FROM reservas WHERE negocio_id = ?',
+        [negocioId],
+        (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ count: rows.count });
+        }
+    )
+});
+
 // Endpoint para cancelar reservas
 app.delete('/api/reservas/:negocioId/:reservaId', (req, res) => {
   const { negocioId, reservaId } = req.params;
@@ -944,6 +966,176 @@ app.post('/api/pedidos/:negocioId', (req, res) => {
       res.json({ success: true, id: this.lastID });
     }
   );
+});
+
+app.get('/api/ingresos/:negocioId', (req, res) => {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+
+
+    if (!negocioId) {
+        return res.status(400).json({ error: 'negocioId es requerido' });
+    }
+
+    //const initialDate = `${year}-${month}-01 00:00:00`;
+
+    db.all(
+        'SELECT items FROM pedidos WHERE negocio_id = ?',
+        [negocioId],
+        (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+
+            const productosVendidos = {};
+
+            for (const row of rows) {
+                try {
+                    const items = JSON.parse(row.items);
+                    for (const item of items) {
+                        const nombre = item.nombre;
+                        const cantidad = item.cantidad;
+
+                        if (!productosVendidos[nombre]) {
+                        productosVendidos[nombre] = 0;
+                        }
+                        productosVendidos[nombre] += cantidad;
+                    }
+                } catch (e) {
+                    console.error('Error al parsear JSON:', row.productos);
+                }
+            }
+
+            const nombres = Object.keys(productosVendidos);
+            if (nombres.length === 0) {
+                return res.json({ total: 0 });
+            }
+
+            const placeholders = nombres.map(() => '?').join(',');
+            db.all(
+                `SELECT nombre, precio FROM productos WHERE negocio_id = ? AND nombre IN (${placeholders})`,
+                [negocioId, ...nombres],
+                (err, productosConPrecio) => {
+                if (err) {
+                    return res.status(500).json({ error: err.message });
+                }
+
+                let total = 0;
+                for (const producto of productosConPrecio) {
+                    const cantidad = 1;//productosVendidos[producto.nombre] || 0;
+                    total += cantidad * producto.precio;
+                }
+
+                res.json({ total });
+                }
+            );
+        }
+    );
+});
+
+app.post('/api/pedidos/:negocioId', (req, res) => {
+  const { negocioId } = req.params;
+  const { numero_cliente, items } = req.body;
+  console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items });
+
+  if (!negocioId || !numero_cliente || !items || !Array.isArray(items) || items.length === 0) {
+    console.log('Faltan campos obligatorios o items no válidos');
+    return res.status(400).json({ error: 'negocioId, numero_cliente y items son requeridos' });
+  }
+
+  const itemsString = JSON.stringify(items);
+
+  db.run(
+    'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES (?, ?, ?, ?)',
+    [negocioId, numero_cliente, itemsString, 'recibido'],
+    function (err) {
+      if (err) {
+        console.error('Error al registrar pedido:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log('Pedido registrado con éxito, ID:', this.lastID);
+      res.json({ success: true, id: this.lastID });
+    }
+  );
+});
+
+app.get('/api/cantVentas/:negocioId', (req, res) => {
+    console.log('SSSSSSSSS');
+
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+    console.log('Solicitud GET /api/cantVentas/${negocioId})');
+    if (!negocioId) {
+        return res.status(400).json({ error: 'negocioId es requerido' });
+    }
+
+
+    //const initialDate = `${year}-${month}-01 00:00:00`;
+
+    db.get(
+        'SELECT count(*) as count FROM pedidos WHERE negocio_id = ?',
+        [negocioId],
+        (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            console.log('EEEEE', rows.count);
+            res.json({ count: rows.count });
+        }
+    );
+});
+
+app.get('/api/productosVendidos/:negocioId', (req, res) => {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+
+
+    if (!negocioId) {
+        return res.status(400).json({ error: 'negocioId es requerido' });
+    }
+
+    //const initialDate = `${year}-${month}-01 00:00:00`;
+
+    db.all(
+        'SELECT items FROM pedidos WHERE negocio_id = ?',
+        [negocioId],
+        (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+
+            const productosVendidos = {};
+
+            for (const row of rows) {
+                try {
+                    const items = JSON.parse(row.items);
+                    for (const item of items) {
+                        const nombre = item.nombre;
+                        const cantidad = item.cantidad;
+
+                        if (!productosVendidos[nombre]) {
+                        productosVendidos[nombre] = 0;
+                        }
+                        productosVendidos[nombre] += cantidad;
+                    }
+                } catch (e) {
+                    console.error('Error al parsear JSON:', row.productos);
+                }
+            }
+            console.log('productosVendidos', productosVendidos);
+            res.json({ productosVendidos });
+        }
+    );
+});
+
+app.get('api/ventasPorSemana/:negocioId', (req, res) => {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+    console.log('Solicitud GET /api/ventasPorSemana/${negocioId})');
+    if (!negocioId) {
+        return res.status(400).json({ error: 'negocioId es requerido' });
+    }
+    res.json();
 });
 
 // Servir archivos estáticos
