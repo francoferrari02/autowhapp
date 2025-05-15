@@ -55,7 +55,9 @@ test('recordatorios dia invalido', async ({ page }) => {
     await expect(page.locator('#root > div > div > div > div:nth-child(3) > div')).toHaveCount(0);
 });
 
-
+/*
+No funciona ya que te deja poner el dia de la semana vacio
+*/
 test('recordatorios semana dia vacio', async ({ page }) => {
     await page.goto('http://127.0.0.1:3001/');
     await page.getByRole('button', { name: 'Recordatorios' }).click();
