@@ -8423,7 +8423,7 @@ recharts-scale@^0.4.4:
 
 recharts@^2.15.3:
   version "2.15.3"
-  resolved "https://registry.npmjs.org/recharts/-/recharts-2.15.3.tgz"
+  resolved "https://registry.yarnpkg.com/recharts/-/recharts-2.15.3.tgz#b94d05e91e3a5df1b02368ef64400dec9e9a77d4"
   integrity sha512-EdOPzTwcFSuqtvkDoaM5ws/Km1+WTAO2eizL7rqiG0V2UVhTnz0m7J2i0CjVPUCdEkZImaWvXLbZDS2H5t6GFQ==
   dependencies:
     clsx "^2.0.0"

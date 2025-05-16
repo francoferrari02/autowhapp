@@ -5,13 +5,10 @@ const db = require('../db');
 
 const clients = {};
 
-function initializeClients() {
+async function initializeClients() {
   console.log('Inicializando clientes...');
-  db.all('SELECT * FROM negocios', [], (err, negocios) => {
-    if (err) {
-      console.error('Error al obtener negocios:', err.message);
-      return;
-    }
+  try {
+    const { rows: negocios } = await db.query('SELECT * FROM negocios');
     if (negocios.length === 0) {
       console.log('No se encontraron negocios en la base de datos.');
       return;
@@ -23,7 +20,9 @@ function initializeClients() {
         initializeClientForNegocio(negocio);
       }
     });
-  });
+  } catch (err) {
+    console.error('Error al obtener negocios:', err.message);
+  }
 }
 
 function initializeClientForNegocio(negocio) {
@@ -95,10 +94,8 @@ function initializeClientForNegocio(negocio) {
       const grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
       if (grupo) {
         const groupId = grupo.id._serialized;
-        db.run('UPDATE negocios SET grupo_id = ? WHERE id = ?', [groupId, negocioId], (err) => {
-          if (err) console.error('Error al guardar groupId:', err.message);
-          else console.log(`✅ groupId guardado para negocio ${negocioId}: ${groupId}`);
-        });
+        await db.query('UPDATE negocios SET grupo_id = $1 WHERE id = $2', [groupId, negocioId]);
+        console.log(`✅ groupId guardado para negocio ${negocioId}: ${groupId}`);
       } else {
         console.error('❌ No se encontró el grupo "Prueba Autowhapp"');
       }
@@ -147,17 +144,9 @@ function initializeClientForNegocio(negocio) {
       return;
     }
 
-    const faqs = await new Promise((resolve) => {
-      db.all('SELECT * FROM faqs WHERE negocio_id = ?', [negocioId], (err, rows) => resolve(err ? [] : rows));
-    });
-
-    const productos = await new Promise((resolve) => {
-      db.all('SELECT * FROM productos WHERE negocio_id = ?', [negocioId], (err, rows) => resolve(err ? [] : rows));
-    });
-
-    const reservas = await new Promise((resolve) => {
-      db.all('SELECT * FROM reservas WHERE negocio_id = ? AND ocupado = 1', [negocioId], (err, rows) => resolve(err ? [] : rows));
-    });
+    const { rows: faqs } = await db.query('SELECT * FROM faqs WHERE negocio_id = $1', [negocioId]);
+    const { rows: productos } = await db.query('SELECT * FROM productos WHERE negocio_id = $1', [negocioId]);
+    const { rows: reservas } = await db.query('SELECT * FROM reservas WHERE negocio_id = $1 AND ocupado = 1', [negocioId]);
 
     const faqsTexto = faqs.length > 0 ? faqs.map(faq => `Pregunta: ${faq.pregunta} Respuesta: ${faq.respuesta}`).join('\n') : 'No hay FAQs disponibles.';
     const productosTexto = productos.length > 0 ? productos.map(p => `${p.nombre}: ${p.descripcion || ''} - $${p.precio}`).join('\n') : 'No hay productos disponibles.';
@@ -173,7 +162,7 @@ function initializeClientForNegocio(negocio) {
     for (let i = 0; i < 14; i++) {
       const dia = new Date(hoy);
       dia.setDate(hoy.getDate() + i);
-      const fecha = dia.toISOString().split('T')[0]; // Ejemplo: "2023-10-25"
+      const fecha = dia.toISOString().split('T')[0];
       
       const slots = [];
       let currentMinutes = toMinutes(hora_inicio_default);
@@ -232,7 +221,7 @@ function initializeClientForNegocio(negocio) {
       numeroCliente += '@c.us';
     }
 
-    const webhookUrl = 'https://68bc-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
+    const webhookUrl = 'https://5ca2-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
     const payload = {
       mensaje: msg.body,
       numeroCliente,
@@ -282,14 +271,12 @@ function initializeClientForNegocio(negocio) {
         console.log('🔍 Pedido detectado:', pedidoData);
         const backendUrl = `http://localhost:3000/api/pedidos/${pedidoData.negocioId}`;
         try {
-          // Calcular el total del pedido
           const total = pedidoData.items.reduce((sum, item) => {
             const product = negocioActualizado.productos.find((p) => p.nombre === item.nombre);
             const price = product ? product.precio : 0;
             return sum + price * item.cantidad;
           }, 0);
 
-          // Enviar un solo pedido con todos los ítems
           const backendRes = await axios.post(backendUrl, {
             numero_cliente: pedidoData.numeroCliente,
             items: pedidoData.items,
@@ -326,79 +313,74 @@ function initializeClientForNegocio(negocio) {
   console.log(`Cliente inicializado para negocio ${negocioId}`);
 }
 
-function identificarNegocio(cleanNumero) {
-  return new Promise((resolve) => {
-    let normalizedNumero = cleanNumero;
-    if (!normalizedNumero.startsWith('+')) {
-      normalizedNumero = '+' + normalizedNumero;
-    }
-    console.log(`Buscando negocio con número normalizado: ${normalizedNumero}`);
-    db.get(
-      'SELECT * FROM negocios WHERE replace(replace(numero_telefono, "+", ""), "-", "") = ?',
-      [normalizedNumero.replace('+', '')],
-      (err, negocio) => {
-        if (err || !negocio) {
-          console.error('Error o negocio no encontrado:', err || 'No existe');
-          console.log('Número buscado:', normalizedNumero);
-          db.all('SELECT numero_telefono FROM negocios', [], (err, rows) => {
-            console.log('Números en la base de datos:', rows);
-          });
-          resolve(null);
-          return;
-        }
-        console.log('Datos crudos de identificarNegocio:', negocio);
-        resolve({
-          id: negocio.id,
-          nombre: negocio.nombre,
-          numero_telefono: negocio.numero_telefono,
-          grupo_id: negocio.grupo_id,
-          tipo_negocio: negocio.tipo_negocio,
-          localidad: negocio.localidad,
-          direccion: negocio.direccion,
-          horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
-          contexto: negocio.contexto || '',
-          estado_bot: Number(negocio.estado_bot) === 1,
-          modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
-          modulo_reservas: Number(negocio.modulo_reservas) === 1,
-          appointment_duration: Number(negocio.appointment_duration) || 60,
-          break_between: Number(negocio.break_between) || 15,
-          hora_inicio_default: negocio.hora_inicio_default || '09:00',
-          hora_fin_default: negocio.hora_fin_default || '18:00',
-        });
-      }
+async function identificarNegocio(cleanNumero) {
+  console.log(`Buscando negocio con número: ${cleanNumero}`);
+  try {
+    const { rows } = await db.query(
+      'SELECT * FROM negocios WHERE regexp_replace(numero_telefono, \'[^0-9]\', \'\', \'g\') = regexp_replace($1, \'[^0-9]\', \'\', \'g\')',
+      [cleanNumero]
     );
-  });
+    const negocio = rows[0];
+    if (!negocio) {
+      console.log('Negocio no encontrado para número:', cleanNumero);
+      return null;
+    }
+    console.log('Datos crudos de identificarNegocio:', negocio);
+    return {
+      id: negocio.id,
+      nombre: negocio.nombre,
+      numero_telefono: negocio.numero_telefono,
+      grupo_id: negocio.grupo_id,
+      tipo_negocio: negocio.tipo_negocio,
+      localidad: negocio.localidad,
+      direccion: negocio.direccion,
+      horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
+      contexto: negocio.contexto || '',
+      estado_bot: Number(negocio.estado_bot) === 1,
+      modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
+      modulo_reservas: Number(negocio.modulo_reservas) === 1,
+      appointment_duration: Number(negocio.appointment_duration) || 60,
+      break_between: Number(negocio.break_between) || 15,
+      hora_inicio_default: negocio.hora_inicio_default || '09:00',
+      hora_fin_default: negocio.hora_fin_default || '18:00',
+    };
+  } catch (err) {
+    console.error('Error al buscar negocio:', err.message);
+    return null;
+  }
 }
 
-function identificarNegocioPorId(negocioId) {
-  return new Promise((resolve) => {
-    db.get('SELECT * FROM negocios WHERE id = ?', [negocioId], (err, negocio) => {
-      if (err || !negocio) {
-        console.error('Error o negocio no encontrado por ID:', err || 'No existe');
-        resolve(null);
-        return;
-      }
-      console.log('Datos crudos de identificarNegocioPorId:', negocio);
-      resolve({
-        id: negocio.id,
-        nombre: negocio.nombre,
-        numero_telefono: negocio.numero_telefono,
-        grupo_id: negocio.grupo_id,
-        tipo_negocio: negocio.tipo_negocio,
-        localidad: negocio.localidad,
-        direccion: negocio.direccion,
-        horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
-        contexto: negocio.contexto || '',
-        estado_bot: Number(negocio.estado_bot) === 1,
-        modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
-        modulo_reservas: Number(negocio.modulo_reservas) === 1,
-        appointment_duration: Number(negocio.appointment_duration) || 60,
-        break_between: Number(negocio.break_between) || 15,
-        hora_inicio_default: negocio.hora_inicio_default || '09:00',
-        hora_fin_default: negocio.hora_fin_default || '18:00',
-      });
-    });
-  });
+async function identificarNegocioPorId(negocioId) {
+  try {
+    const { rows } = await db.query('SELECT * FROM negocios WHERE id = $1', [negocioId]);
+    const negocio = rows[0];
+    if (!negocio) {
+      console.log('Negocio no encontrado por ID:', negocioId);
+      return null;
+    }
+    console.log('Datos crudos de identificarNegocioPorId:', negocio);
+    return {
+      id: negocio.id,
+      nombre: negocio.nombre,
+      numero_telefono: negocio.numero_telefono,
+      grupo_id: negocio.grupo_id,
+      tipo_negocio: negocio.tipo_negocio,
+      localidad: negocio.localidad,
+      direccion: negocio.direccion,
+      horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
+      contexto: negocio.contexto || '',
+      estado_bot: Number(negocio.estado_bot) === 1,
+      modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
+      modulo_reservas: Number(negocio.modulo_reservas) === 1,
+      appointment_duration: Number(negocio.appointment_duration) || 60,
+      break_between: Number(negocio.break_between) || 15,
+      hora_inicio_default: negocio.hora_inicio_default || '09:00',
+      hora_fin_default: negocio.hora_fin_default || '18:00',
+    };
+  } catch (err) {
+    console.error('Error al buscar negocio por ID:', err.message);
+    return null;
+  }
 }
 
 function formatTime(totalMinutes) {
@@ -432,7 +414,5 @@ function detectarPedido(respuesta) {
   }
   return null;
 }
-
-initializeClients();
 
 module.exports = { clients, initializeClients };

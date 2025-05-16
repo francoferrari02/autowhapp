@@ -2,8 +2,8 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const db = require('./db');
-const { clients } = require('./whatsapp/client');
 const cron = require('node-cron');
+const { clients, initializeClients } = require('./whatsapp/client');
 
 cron.schedule('*/30 * * * * *', () => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
@@ -25,57 +25,58 @@ cron.schedule('*/30 * * * * *', () => {
     }
 
     console.log(`📂 Recordatorios activos encontrados: ${rows.length}`);
+    if (rows.length === 0) return;
 
     for (const recordatorio of rows) {
-      const { id, message, frequency, time, day, negocio_id, last_sent } = recordatorio;
-      const reminderMinutes = toMinutes(time);
-      const diffMinutes = Math.abs(currentMinutes - reminderMinutes);
-
-      console.log(`🔍 Evaluando recordatorio ID ${id} → "${message}"`);
-      console.log(`   - Frecuencia: ${frequency}, Día: ${day}, Hora: ${time}, diffMinutes: ${diffMinutes}`);
-
-      let debeEnviar = false;
-
-      if (last_sent) {
-        const lastSentDate = new Date(last_sent);
-        const timeSinceLastSent = (now - lastSentDate) / (1000 * 60);
-        const isDuplicate = 
-          (frequency === 'daily' && lastSentDate.toDateString() === now.toDateString()) ||
-          (frequency === 'weekly' && lastSentDate.getDay() === now.getDay()) ||
-          (frequency === 'monthly' && lastSentDate.getDate() === now.getDate()) ||
-          (frequency === 'once' && lastSentDate.toISOString().slice(0, 10) === now.toISOString().slice(0, 10));
-
-        if (isDuplicate) {
-          console.log(`⏸️ Recordatorio ID ${id} ya enviado recientemente`);
-          continue;
-        }
-        if (timeSinceLastSent < 2) {
-          console.log(`⏸️ Recordatorio ID ${id} enviado hace menos de 2 minutos (${timeSinceLastSent.toFixed(1)} min)`);
-          continue;
-        }
-      }
-
-      if (frequency === 'daily' && diffMinutes === 0) {
-        debeEnviar = true;
-      } else if (frequency === 'weekly' && day?.toLowerCase() === currentDayName.toLowerCase() && diffMinutes === 0) {
-        debeEnviar = true;
-      } else if (frequency === 'monthly' && day === currentDayNumber && diffMinutes === 0) {
-        debeEnviar = true;
-      } else if (frequency === 'once') {
-        const targetDateTime = `${day} ${time}:00`;
-        const fullMatch = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}:00`;
-        if (targetDateTime === fullMatch) debeEnviar = true;
-      }
-
-      if (!debeEnviar) {
-        console.log(`⏸️ No se debe enviar el recordatorio ID ${id}`);
-        continue;
-      }
-
-      console.log(`🚀 Se debe enviar el recordatorio ID ${id}`);
-      console.log(`🔎 Buscando cliente autenticado para negocio ${negocio_id}...`);
-
       try {
+        const { id, message, frequency, time, day, negocio_id, last_sent } = recordatorio;
+        const reminderMinutes = toMinutes(time);
+        const diffMinutes = Math.abs(currentMinutes - reminderMinutes);
+
+        console.log(`🔍 Evaluando recordatorio ID ${id} → "${message}"`);
+        console.log(`   - Frecuencia: ${frequency}, Día: ${day}, Hora: ${time}, diffMinutes: ${diffMinutes}`);
+
+        let debeEnviar = false;
+
+        if (last_sent) {
+          const lastSentDate = new Date(last_sent);
+          const timeSinceLastSent = (now - lastSentDate) / (1000 * 60);
+          const isDuplicate = 
+            (frequency === 'daily' && lastSentDate.toDateString() === now.toDateString()) ||
+            (frequency === 'weekly' && lastSentDate.getDay() === now.getDay()) ||
+            (frequency === 'monthly' && lastSentDate.getDate() === now.getDate()) ||
+            (frequency === 'once' && lastSentDate.toISOString().slice(0, 10) === now.toISOString().slice(0, 10));
+
+          if (isDuplicate) {
+            console.log(`⏸️ Recordatorio ID ${id} ya enviado recientemente`);
+            continue;
+          }
+          if (timeSinceLastSent < 2) {
+            console.log(`⏸️ Recordatorio ID ${id} enviado hace menos de 2 minutos (${timeSinceLastSent.toFixed(1)} min)`);
+            continue;
+          }
+        }
+
+        if (frequency === 'daily' && diffMinutes === 0) {
+          debeEnviar = true;
+        } else if (frequency === 'weekly' && day?.toLowerCase() === currentDayName.toLowerCase() && diffMinutes === 0) {
+          debeEnviar = true;
+        } else if (frequency === 'monthly' && day === currentDayNumber && diffMinutes === 0) {
+          debeEnviar = true;
+        } else if (frequency === 'once') {
+          const targetDateTime = `${day} ${time}:00`;
+          const fullMatch = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}:00`;
+          if (targetDateTime === fullMatch) debeEnviar = true;
+        }
+
+        if (!debeEnviar) {
+          console.log(`⏸️ No se debe enviar el recordatorio ID ${id}`);
+          continue;
+        }
+
+        console.log(`🚀 Se debe enviar el recordatorio ID ${id}`);
+        console.log(`🔎 Buscando cliente autenticado para negocio ${negocio_id}...`);
+
         const clientObj = clients[negocio_id];
         if (!clientObj || !clientObj.client || !clientObj.authenticated) {
           console.error(`❌ No hay cliente autenticado para negocio ${negocio_id}`);
@@ -95,7 +96,7 @@ cron.schedule('*/30 * * * * *', () => {
 
         console.log('Obteniendo chat del grupo...');
         let grupo;
-        const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = ?', [negocio_id], (err, row) => resolve(row)));
+        const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = $1', [negocio_id], (err, row) => resolve(row)));
         if (negocio && negocio.grupo_id) {
           try {
             grupo = await client.getChatById(negocio.grupo_id);
@@ -146,7 +147,7 @@ cron.schedule('*/30 * * * * *', () => {
           console.timeEnd(`🕐 Tiempo envío recordatorio ID ${id}`);
           console.log(`✉️ Recordatorio enviado con éxito para ID ${id}`);
 
-          db.run('UPDATE recordatorios SET last_sent = ? WHERE id = ?', [currentDateTime, id], (err) => {
+          db.run('UPDATE recordatorios SET last_sent = $1 WHERE id = $2', [currentDateTime, id], (err) => {
             if (err) console.error('❌ Error al actualizar last_sent:', err.message);
             else console.log(`✅ last_sent actualizado para recordatorio ID ${id}`);
           });
@@ -175,7 +176,7 @@ const formatTime = (totalMinutes) => {
 app.get('/api/negocio/:id', (req, res) => {
   const negocioId = req.params.id;
   console.log(`Solicitud GET /api/negocio/${negocioId}`);
-  db.get('SELECT * FROM negocios WHERE id = ?', [negocioId], (err, row) => {
+  db.get('SELECT * FROM negocios WHERE id = $1', [negocioId], (err, row) => {
     if (err) {
       console.error('Error al obtener negocio:', err.message);
       return res.status(500).json({ error: err.message });
@@ -185,13 +186,13 @@ app.get('/api/negocio/:id', (req, res) => {
       return res.status(404).json({ error: 'Negocio no encontrado' });
     }
     // Obtener reservas
-    db.all('SELECT * FROM reservas WHERE negocio_id = ?', [negocioId], (err, reservas) => {
+    db.all('SELECT * FROM reservas WHERE negocio_id = $1', [negocioId], (err, reservas) => {
       if (err) {
         console.error('Error al obtener reservas:', err.message);
         return res.status(500).json({ error: err.message });
       }
       // Obtener recordatorios
-      db.all('SELECT * FROM recordatorios WHERE negocio_id = ?', [negocioId], (err, recordatorios) => {
+      db.all('SELECT * FROM recordatorios WHERE negocio_id = $1', [negocioId], (err, recordatorios) => {
         if (err) {
           console.error('Error al obtener recordatorios:', err.message);
           return res.status(500).json({ error: err.message });
@@ -223,7 +224,7 @@ app.post('/api/reservas/:negocioId', (req, res) => {
     return res.status(400).json({ error: 'fecha, hora_inicio y hora_fin son requeridos' });
   }
 
-  db.get('SELECT modulo_reservas, appointment_duration, break_between, hora_inicio_default, hora_fin_default FROM negocios WHERE id = ?', [negocioId], (err, row) => {
+  db.get('SELECT modulo_reservas, appointment_duration, break_between, hora_inicio_default, hora_fin_default FROM negocios WHERE id = $1', [negocioId], (err, row) => {
     if (err) {
       console.error('Error al verificar negocio:', err.message);
       return res.status(500).json({ error: err.message });
@@ -270,7 +271,7 @@ app.post('/api/reservas/:negocioId', (req, res) => {
     }
 
     db.all(
-      'SELECT * FROM reservas WHERE negocio_id = ? AND fecha = ? AND ((hora_inicio <= ? AND hora_fin >= ?) OR (hora_inicio <= ? AND hora_fin >= ?))',
+      'SELECT * FROM reservas WHERE negocio_id = $1 AND fecha = $2 AND ((hora_inicio <= $3 AND hora_fin >= $4) OR (hora_inicio <= $5 AND hora_fin >= $6))',
       [negocioId, fecha, hora_fin, hora_inicio, hora_fin, hora_inicio],
       (err, reservas) => {
         if (err) {
@@ -283,7 +284,7 @@ app.post('/api/reservas/:negocioId', (req, res) => {
         }
 
         db.run(
-          'INSERT INTO reservas (negocio_id, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO reservas (negocio_id, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
           [negocioId, fecha, hora_inicio, hora_fin, ocupado ? 1 : 0, cliente || '', telefono || '', descripcion || ''],
           function (err) {
             if (err) {
@@ -303,22 +304,22 @@ app.get('/api/cantReservas/:negocioId', (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
 
-    console.log('Solicitud POST /api/cantReservas/${negocioId})');
+    console.log(`Solicitud GET /api/cantReservas/${negocioId})`);
 
     if (!negocioId) {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
     db.get(
-        'SELECT count(*) as count FROM reservas WHERE negocio_id = ?',
+        'SELECT count(*) as count FROM reservas WHERE negocio_id = $1',
         [negocioId],
-        (err, rows) => {
+        (err, row) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
-            res.json({ count: rows.count });
+            res.json({ count: row.count });
         }
-    )
+    );
 });
 
 // Endpoint para cancelar reservas
@@ -326,8 +327,7 @@ app.delete('/api/reservas/:negocioId/:reservaId', (req, res) => {
   const { negocioId, reservaId } = req.params;
   console.log(`Solicitud DELETE /api/reservas/${negocioId}/${reservaId}`);
 
-  // Verificar si la reserva existe y pertenece al negocio
-  db.get('SELECT * FROM reservas WHERE id = ? AND negocio_id = ?', [reservaId, negocioId], (err, reserva) => {
+  db.get('SELECT * FROM reservas WHERE id = $1 AND negocio_id = $2', [reservaId, negocioId], (err, reserva) => {
     if (err) {
       console.error('Error al verificar reserva:', err.message);
       return res.status(500).json({ error: 'Error al verificar la reserva: ' + err.message });
@@ -337,13 +337,12 @@ app.delete('/api/reservas/:negocioId/:reservaId', (req, res) => {
       return res.status(404).json({ error: 'Reserva no encontrada o no pertenece a este negocio' });
     }
 
-    // Proceder a eliminar la reserva
-    db.run('DELETE FROM reservas WHERE id = ? AND negocio_id = ?', [reservaId, negocioId], function (err) {
+    db.run('DELETE FROM reservas WHERE id = $1 AND negocio_id = $2', [reservaId, negocioId], function (err) {
       if (err) {
         console.error('Error al cancelar reserva:', err.message);
         return res.status(500).json({ error: 'Error al cancelar la reserva: ' + err.message });
       }
-      if (this.changes === 0) {
+      if (this.rowCount === 0) {
         console.log(`Reserva ${reservaId} no encontrada para negocio ${negocioId}`);
         return res.status(404).json({ error: 'Reserva no encontrada o no pertenece a este negocio' });
       }
@@ -370,7 +369,7 @@ app.put('/api/reservas/:negocioId', (req, res) => {
   }
 
   db.run(
-    'UPDATE negocios SET appointment_duration = ?, break_between = ?, hora_inicio_default = ?, hora_fin_default = ? WHERE id = ?',
+    'UPDATE negocios SET appointment_duration = $1, break_between = $2, hora_inicio_default = $3, hora_fin_default = $4 WHERE id = $5',
     [appointmentDuration, breakBetween, hora_inicio_default, hora_fin_default, negocioId],
     (err) => {
       if (err) {
@@ -388,7 +387,7 @@ app.delete('/api/pedidos/:negocioId/:pedidoId', (req, res) => {
   const { negocioId, pedidoId } = req.params;
   console.log(`Solicitud DELETE /api/pedidos/${negocioId}/${pedidoId}`);
 
-  db.get('SELECT * FROM pedidos WHERE id = ? AND negocio_id = ?', [pedidoId, negocioId], (err, pedido) => {
+  db.get('SELECT * FROM pedidos WHERE id = $1 AND negocio_id = $2', [pedidoId, negocioId], (err, pedido) => {
     if (err) {
       console.error('Error al verificar pedido:', err.message);
       return res.status(500).json({ error: 'Error al verificar el pedido: ' + err.message });
@@ -398,12 +397,12 @@ app.delete('/api/pedidos/:negocioId/:pedidoId', (req, res) => {
       return res.status(404).json({ error: 'Pedido no encontrado o no pertenece a este negocio' });
     }
 
-    db.run('DELETE FROM pedidos WHERE id = ? AND negocio_id = ?', [pedidoId, negocioId], function (err) {
+    db.run('DELETE FROM pedidos WHERE id = $1 AND negocio_id = $2', [pedidoId, negocioId], function (err) {
       if (err) {
         console.error('Error al eliminar pedido:', err.message);
         return res.status(500).json({ error: 'Error al eliminar el pedido: ' + err.message });
       }
-      if (this.changes === 0) {
+      if (this.rowCount === 0) {
         console.log(`Pedido ${pedidoId} no encontrado para negocio ${negocioId}`);
         return res.status(404).json({ error: 'Pedido no encontrado o no pertenece a este negocio' });
       }
@@ -418,18 +417,18 @@ app.put('/api/pedido/:id/estado', (req, res) => {
   const { estado } = req.body;
   console.log(`Solicitud PUT /api/pedido/${req.params.id}/estado:`, { estado });
 
-  db.run('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id], async (err) => {
+  db.run('UPDATE pedidos SET estado = $1 WHERE id = $2', [estado, req.params.id], async (err) => {
     if (err) {
       console.error('Error al actualizar estado del pedido:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    const pedido = await new Promise((resolve) => db.get('SELECT * FROM pedidos WHERE id = ?', [req.params.id], (e, r) => resolve(r)));
-    const mensaje = await new Promise((resolve) => db.get('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = ? AND tipo = ?', [pedido.negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.mensaje)));
+    const pedido = await new Promise((resolve) => db.get('SELECT * FROM pedidos WHERE id = $1', [req.params.id], (e, r) => resolve(r)));
+    const mensaje = await new Promise((resolve) => db.get('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = $1 AND tipo = $2', [pedido.negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.mensaje)));
     console.log(`Mensaje recuperado para estado ${estado}: ${mensaje}`);
     if (mensaje && clients[pedido.negocio_id]?.client) {
       console.log(`Buscando grupo "Prueba Autowhapp" para negocio ${pedido.negocio_id}`);
       let grupo;
-      const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = ?', [pedido.negocio_id], (err, row) => resolve(row)));
+      const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = $1', [pedido.negocio_id], (err, row) => resolve(row)));
       if (negocio && negocio.grupo_id) {
         try {
           grupo = await clients[pedido.negocio_id].client.getChatById(negocio.grupo_id);
@@ -461,8 +460,10 @@ app.get('/api/qrs', (req, res) => {
       console.error('Error al obtener negocios:', err.message);
       return res.status(500).json({ error: err.message });
     }
+   
     const qrs = negocios.map(negocio => {
       const negocioId = negocio.id;
+      console.log(`Negocio ${negocioId} , Authenticated: ${clients[negocioId]?.authenticated}`);
       return {
         negocioId,
         qr: clients[negocioId]?.qr || null,
@@ -483,7 +484,7 @@ app.post('/api/actualizar-estado-bot', (req, res) => {
     return res.status(400).json({ error: 'negocioId y estadoBot son requeridos' });
   }
 
-  db.run('UPDATE negocios SET estado_bot = ? WHERE id = ?', [estadoBot ? 1 : 0, negocioId], (err) => {
+  db.run('UPDATE negocios SET estado_bot = $1 WHERE id = $2', [estadoBot ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar estado del bot:', err.message);
       return res.status(500).json({ error: err.message });
@@ -502,7 +503,7 @@ app.post('/api/actualizar-modulo-pedidos', (req, res) => {
     return res.status(400).json({ error: 'negocioId y moduloPedidos son requeridos' });
   }
 
-  db.run('UPDATE negocios SET modulo_pedidos = ? WHERE id = ?', [moduloPedidos ? 1 : 0, negocioId], (err) => {
+  db.run('UPDATE negocios SET modulo_pedidos = $1 WHERE id = $2', [moduloPedidos ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar modulo de pedidos:', err.message);
       return res.status(500).json({ error: err.message });
@@ -521,7 +522,7 @@ app.post('/api/actualizar-modulo-reservas', (req, res) => {
     return res.status(400).json({ error: 'negocioId y moduloReservas son requeridos' });
   }
 
-  db.run('UPDATE negocios SET modulo_reservas = ? WHERE id = ?', [moduloReservas ? 1 : 0, negocioId], (err) => {
+  db.run('UPDATE negocios SET modulo_reservas = $1 WHERE id = $2', [moduloReservas ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar modulo de reservas:', err.message);
       return res.status(500).json({ error: err.message });
@@ -540,7 +541,7 @@ app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
     return res.status(400).json({ error: 'negocioId y moduloRecordatorios son requeridos' });
   }
 
-  db.run('UPDATE negocios SET modulo_recordatorios = ? WHERE id = ?', [moduloRecordatorios ? 1 : 0, negocioId], (err) => {
+  db.run('UPDATE negocios SET modulo_recordatorios = $1 WHERE id = $2', [moduloRecordatorios ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar módulo de recordatorios:', err.message);
       return res.status(500).json({ error: err.message });
@@ -591,7 +592,7 @@ app.post('/api/negocios', (req, res) => {
 
   db.run(
     `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, estado_bot, modulo_pedidos, modulo_reservas)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
     [
       nombre,
       normalizedNumeroTelefono,
@@ -609,8 +610,9 @@ app.post('/api/negocios', (req, res) => {
         console.error('Error al insertar negocio:', err.message);
         return res.status(500).json({ error: err.message });
       }
-      console.log('Negocio insertado con éxito, ID:', this.lastID);
-      res.json({ success: true, negocioId: this.lastID });
+      const negocioId = this.lastID;
+      console.log('Negocio insertado con éxito, ID:', negocioId);
+      res.json({ success: true, negocioId });
     }
   );
 });
@@ -620,7 +622,7 @@ app.put('/api/negocio/:id', (req, res) => {
   console.log(`Solicitud PUT /api/negocio/${req.params.id}:`, req.body);
 
   db.run(
-    `UPDATE negocios SET nombre = ?, tipo_negocio = ?, localidad = ?, direccion = ?, horarios = ?, contexto = ?, modulo_pedidos = ?, estado_bot = ?, modulo_reservas = ? WHERE id = ?`,
+    `UPDATE negocios SET nombre = $1, tipo_negocio = $2, localidad = $3, direccion = $4, horarios = $5, contexto = $6, modulo_pedidos = $7, estado_bot = $8, modulo_reservas = $9 WHERE id = $10`,
     [nombre, tipo_negocio, localidad, direccion, JSON.stringify(horarios), contexto, modulo_pedidos ? 1 : 0, estado_bot ? 1 : 0, modulo_reservas ? 1 : 0, req.params.id],
     (err) => {
       if (err) {
@@ -636,7 +638,7 @@ app.put('/api/negocio/:id', (req, res) => {
 app.get('/api/faqs/:negocioId', (req, res) => {
   const negocioId = req.params.negocioId;
   console.log(`Solicitud GET /api/faqs/${negocioId}`);
-  db.all('SELECT * FROM faqs WHERE negocio_id = ?', [negocioId], (err, rows) => {
+  db.all('SELECT * FROM faqs WHERE negocio_id = $1', [negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener FAQs:', err.message);
       return res.status(500).json({ error: err.message });
@@ -654,7 +656,7 @@ app.post('/api/faqs', (req, res) => {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
 
-  db.run('INSERT INTO faqs (negocio_id, pregunta, respuesta) VALUES (?, ?, ?)',
+  db.run('INSERT INTO faqs (negocio_id, pregunta, respuesta) VALUES ($1, $2, $3)',
     [negocioId, pregunta, respuesta],
     function(err) {
       if (err) {
@@ -671,7 +673,7 @@ app.put('/api/faqs/:id', (req, res) => {
   const { pregunta, respuesta } = req.body;
   console.log(`Solicitud PUT /api/faqs/${req.params.id}:`, { pregunta, respuesta });
 
-  db.run('UPDATE faqs SET pregunta = ?, respuesta = ? WHERE id = ?',
+  db.run('UPDATE faqs SET pregunta = $1, respuesta = $2 WHERE id = $3',
     [pregunta, respuesta, req.params.id],
     function(err) {
       if (err) {
@@ -686,7 +688,7 @@ app.put('/api/faqs/:id', (req, res) => {
 
 app.delete('/api/faqs/:id', (req, res) => {
   console.log(`Solicitud DELETE /api/faqs/${req.params.id}`);
-  db.run('DELETE FROM faqs WHERE id = ?', [req.params.id], function(err) {
+  db.run('DELETE FROM faqs WHERE id = $1', [req.params.id], function(err) {
     if (err) {
       console.error('Error al eliminar FAQ:', err.message);
       return res.status(500).json({ error: err.message });
@@ -721,7 +723,7 @@ app.post('/api/productos', (req, res) => {
     return res.status(400).json({ error: 'El precio debe ser un número válido mayor que 0' });
   }
 
-  db.run('INSERT INTO productos (negocio_id, nombre, descripcion, precio, foto) VALUES (?, ?, ?, ?, ?)',
+  db.run('INSERT INTO productos (negocio_id, nombre, descripcion, precio, foto) VALUES ($1, $2, $3, $4, $5)',
     [negocio_id, nombre, descripcion, precio, foto], (err) => {
       if (err) {
         console.error('Error al crear producto:', err.message);
@@ -734,7 +736,7 @@ app.post('/api/productos', (req, res) => {
 
 app.get('/api/productos/:negocioId', (req, res) => {
   console.log(`Solicitud GET /api/productos/${req.params.negocioId}`);
-  db.all('SELECT * FROM productos WHERE negocio_id = ?', [req.params.negocioId], (err, rows) => {
+  db.all('SELECT * FROM productos WHERE negocio_id = $1', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener productos:', err.message);
       return res.status(500).json({ error: err.message });
@@ -757,7 +759,7 @@ app.put('/api/productos/:id', (req, res) => {
     return res.status(400).json({ error: 'El precio debe ser un número válido mayor que 0' });
   }
 
-  db.run('UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, foto = ? WHERE id = ?',
+  db.run('UPDATE productos SET nombre = $1, descripcion = $2, precio = $3, foto = $4 WHERE id = $5',
     [nombre, descripcion, precio, foto, req.params.id], (err) => {
       if (err) {
         console.error('Error al actualizar producto:', err.message);
@@ -770,7 +772,7 @@ app.put('/api/productos/:id', (req, res) => {
 
 app.delete('/api/productos/:id', (req, res) => {
   console.log(`Solicitud DELETE /api/productos/${req.params.id}`);
-  db.run('DELETE FROM productos WHERE id = ?', [req.params.id], (err) => {
+  db.run('DELETE FROM productos WHERE id = $1', [req.params.id], (err) => {
     if (err) {
       console.error('Error al eliminar producto:', err.message);
       return res.status(500).json({ error: err.message });
@@ -787,7 +789,7 @@ app.post('/api/mensajes-pedidos', (req, res) => {
   const tipos = ['recibido', 'preparando', 'enviado'];
   db.serialize(() => {
     tipos.forEach(tipo => {
-      db.run('INSERT OR REPLACE INTO mensajes_pedidos (negocio_id, tipo, mensaje) VALUES (?, ?, ?)',
+      db.run('INSERT OR REPLACE INTO mensajes_pedidos (negocio_id, tipo, mensaje) VALUES ($1, $2, $3)',
         [negocio_id, tipo, mensajes[tipo]], (err) => {
           if (err) console.error('Error al insertar mensaje de pedido:', err.message);
           else console.log(`Mensaje para ${tipo} actualizado: ${mensajes[tipo]}`);
@@ -820,7 +822,7 @@ app.post('/api/recordatorios/:negocioId', (req, res) => {
   const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
 
   db.run(
-    'INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo, last_sent) VALUES (?, ?, ?, ?, ?, ?, NULL)',
+    'INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo, last_sent) VALUES ($1, $2, $3, $4, $5, $6, NULL)',
     [negocioId, message, frequency, time, normalizedDay, activo ? 1 : 0],
     function (err) {
       if (err) {
@@ -855,14 +857,14 @@ app.put('/api/recordatorios/:id', (req, res) => {
   const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
 
   db.run(
-    'UPDATE recordatorios SET message = ?, frequency = ?, time = ?, day = ?, activo = ? WHERE id = ?',
+    'UPDATE recordatorios SET message = $1, frequency = $2, time = $3, day = $4, activo = $5 WHERE id = $6',
     [message, frequency, time, normalizedDay, activo ? 1 : 0, id],
     function (err) {
       if (err) {
         console.error('Error al actualizar recordatorio:', err.message);
         return res.status(500).json({ error: err.message });
       }
-      if (this.changes === 0) {
+      if (this.rowCount === 0) {
         console.log('Recordatorio no encontrado:', id);
         return res.status(404).json({ error: 'Recordatorio no encontrado' });
       }
@@ -884,14 +886,14 @@ app.put('/api/recordatorios/:id/activo', (req, res) => {
   }
 
   db.run(
-    'UPDATE recordatorios SET activo = ? WHERE id = ?',
+    'UPDATE recordatorios SET activo = $1 WHERE id = $2',
     [activo ? 1 : 0, id],
     function (err) {
       if (err) {
         console.error('Error al actualizar estado del recordatorio:', err.message);
         return res.status(500).json({ error: err.message });
       }
-      if (this.changes === 0) {
+      if (this.rowCount === 0) {
         console.log('Recordatorio no encontrado:', id);
         return res.status(404).json({ error: 'Recordatorio no encontrado' });
       }
@@ -906,12 +908,12 @@ app.delete('/api/recordatorios/:id', (req, res) => {
   const { id } = req.params;
   console.log('Solicitud DELETE /api/recordatorios/:id:', { id });
 
-  db.run('DELETE FROM recordatorios WHERE id = ?', [id], function (err) {
+  db.run('DELETE FROM recordatorios WHERE id = $1', [id], function (err) {
     if (err) {
       console.error('Error al eliminar recordatorio:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    if (this.changes === 0) {
+    if (this.rowCount === 0) {
       console.log('Recordatorio no encontrado:', id);
       return res.status(404).json({ error: 'Recordatorio no encontrado' });
     }
@@ -922,7 +924,7 @@ app.delete('/api/recordatorios/:id', (req, res) => {
 
 app.get('/api/mensajes-pedidos/:negocioId', (req, res) => {
   console.log(`Solicitud GET /api/mensajes-pedidos/${req.params.negocioId}`);
-  db.all('SELECT * FROM mensajes_pedidos WHERE negocio_id = ?', [req.params.negocioId], (err, rows) => {
+  db.all('SELECT * FROM mensajes_pedidos WHERE negocio_id = $1', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener mensajes de pedidos:', err.message);
       return res.status(500).json({ error: err.message });
@@ -933,7 +935,7 @@ app.get('/api/mensajes-pedidos/:negocioId', (req, res) => {
 
 app.get('/api/pedidos/:negocioId', (req, res) => {
   console.log(`Solicitud GET /api/pedidos/${req.params.negocioId}`);
-  db.all('SELECT * FROM pedidos WHERE negocio_id = ? ORDER BY created_at DESC', [req.params.negocioId], (err, rows) => {
+  db.all('SELECT * FROM pedidos WHERE negocio_id = $1 ORDER BY created_at DESC', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener pedidos:', err.message);
       return res.status(500).json({ error: err.message });
@@ -955,7 +957,7 @@ app.post('/api/pedidos/:negocioId', (req, res) => {
   const itemsString = JSON.stringify(items);
 
   db.run(
-    'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES (?, ?, ?, ?)',
+    'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES ($1, $2, $3, $4)',
     [negocioId, numero_cliente, itemsString, 'recibido'],
     function (err) {
       if (err) {
@@ -972,15 +974,12 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
 
-
     if (!negocioId) {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-    //const initialDate = `${year}-${month}-01 00:00:00`;
-
     db.all(
-        'SELECT items FROM pedidos WHERE negocio_id = ?',
+        'SELECT items FROM pedidos WHERE negocio_id = $1',
         [negocioId],
         (err, rows) => {
             if (err) {
@@ -1002,7 +1001,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
                         productosVendidos[nombre] += cantidad;
                     }
                 } catch (e) {
-                    console.error('Error al parsear JSON:', row.productos);
+                    console.error('Error al parsear JSON:', row.items);
                 }
             }
 
@@ -1011,9 +1010,9 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
                 return res.json({ total: 0 });
             }
 
-            const placeholders = nombres.map(() => '?').join(',');
+            const placeholders = nombres.map((_, i) => `$${i + 2}`).join(',');
             db.all(
-                `SELECT nombre, precio FROM productos WHERE negocio_id = ? AND nombre IN (${placeholders})`,
+                `SELECT nombre, precio FROM productos WHERE negocio_id = $1 AND nombre IN (${placeholders})`,
                 [negocioId, ...nombres],
                 (err, productosConPrecio) => {
                 if (err) {
@@ -1022,7 +1021,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
 
                 let total = 0;
                 for (const producto of productosConPrecio) {
-                    const cantidad = 1;//productosVendidos[producto.nombre] || 0;
+                    const cantidad = productosVendidos[producto.nombre] || 0;
                     total += cantidad * producto.precio;
                 }
 
@@ -1033,54 +1032,22 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
     );
 });
 
-app.post('/api/pedidos/:negocioId', (req, res) => {
-  const { negocioId } = req.params;
-  const { numero_cliente, items } = req.body;
-  console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items });
-
-  if (!negocioId || !numero_cliente || !items || !Array.isArray(items) || items.length === 0) {
-    console.log('Faltan campos obligatorios o items no válidos');
-    return res.status(400).json({ error: 'negocioId, numero_cliente y items son requeridos' });
-  }
-
-  const itemsString = JSON.stringify(items);
-
-  db.run(
-    'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES (?, ?, ?, ?)',
-    [negocioId, numero_cliente, itemsString, 'recibido'],
-    function (err) {
-      if (err) {
-        console.error('Error al registrar pedido:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-      console.log('Pedido registrado con éxito, ID:', this.lastID);
-      res.json({ success: true, id: this.lastID });
-    }
-  );
-});
-
 app.get('/api/cantVentas/:negocioId', (req, res) => {
-    console.log('SSSSSSSSS');
-
     const { negocioId } = req.params;
     const { year, month } = req.query;
-    console.log('Solicitud GET /api/cantVentas/${negocioId})');
+    console.log(`Solicitud GET /api/cantVentas/${negocioId})`);
     if (!negocioId) {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-
-    //const initialDate = `${year}-${month}-01 00:00:00`;
-
     db.get(
-        'SELECT count(*) as count FROM pedidos WHERE negocio_id = ?',
+        'SELECT count(*) as count FROM pedidos WHERE negocio_id = $1',
         [negocioId],
-        (err, rows) => {
+        (err, row) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
-            console.log('EEEEE', rows.count);
-            res.json({ count: rows.count });
+            res.json({ count: row.count });
         }
     );
 });
@@ -1089,15 +1056,12 @@ app.get('/api/productosVendidos/:negocioId', (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
 
-
     if (!negocioId) {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-    //const initialDate = `${year}-${month}-01 00:00:00`;
-
     db.all(
-        'SELECT items FROM pedidos WHERE negocio_id = ?',
+        'SELECT items FROM pedidos WHERE negocio_id = $1',
         [negocioId],
         (err, rows) => {
             if (err) {
@@ -1119,19 +1083,18 @@ app.get('/api/productosVendidos/:negocioId', (req, res) => {
                         productosVendidos[nombre] += cantidad;
                     }
                 } catch (e) {
-                    console.error('Error al parsear JSON:', row.productos);
+                    console.error('Error al parsear JSON:', row.items);
                 }
             }
-            console.log('productosVendidos', productosVendidos);
             res.json({ productosVendidos });
         }
     );
 });
 
-app.get('api/ventasPorSemana/:negocioId', (req, res) => {
+app.get('/api/ventasPorSemana/:negocioId', (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
-    console.log('Solicitud GET /api/ventasPorSemana/${negocioId})');
+    console.log(`Solicitud GET /api/ventasPorSemana/${negocioId})`);
     if (!negocioId) {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
@@ -1148,4 +1111,5 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  initializeClients(); 
 });

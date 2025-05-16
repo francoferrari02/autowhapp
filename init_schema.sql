@@ -1,0 +1,90 @@
+-- Crear tabla negocios
+CREATE TABLE IF NOT EXISTS negocios (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  numero_telefono TEXT NOT NULL,
+  grupo_id TEXT,
+  tipo_negocio TEXT,
+  localidad TEXT,
+  direccion TEXT,
+  horarios TEXT,
+  contexto TEXT,
+  estado_bot INTEGER DEFAULT 1,
+  modulo_pedidos INTEGER DEFAULT 0,
+  modulo_reservas INTEGER DEFAULT 0,
+  modulo_recordatorios INTEGER DEFAULT 0,
+  appointment_duration INTEGER DEFAULT 60,
+  break_between INTEGER DEFAULT 15,
+  hora_inicio_default TEXT DEFAULT '09:00',
+  hora_fin_default TEXT DEFAULT '18:00'
+);
+
+-- Crear tabla reservas
+CREATE TABLE IF NOT EXISTS reservas (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER,
+  fecha TEXT NOT NULL,
+  hora_inicio TEXT NOT NULL,
+  hora_fin TEXT NOT NULL,
+  ocupado INTEGER DEFAULT 0,
+  cliente TEXT,
+  telefono TEXT,
+  descripcion TEXT,
+  CONSTRAINT fk_negocio_reservas FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear índice para reservas
+CREATE INDEX IF NOT EXISTS idx_reservas_negocio_fecha ON reservas (negocio_id, fecha);
+
+-- Crear tabla recordatorios
+CREATE TABLE IF NOT EXISTS recordatorios (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER NOT NULL,
+  message TEXT NOT NULL,
+  frequency TEXT NOT NULL,
+  time TEXT NOT NULL,
+  day TEXT,
+  activo INTEGER DEFAULT 1,
+  last_sent TIMESTAMP,
+  CONSTRAINT fk_negocio_recordatorios FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear tabla faqs
+CREATE TABLE IF NOT EXISTS faqs (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER,
+  pregunta TEXT NOT NULL,
+  respuesta TEXT NOT NULL,
+  CONSTRAINT fk_negocio_faqs FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear tabla productos
+CREATE TABLE IF NOT EXISTS productos (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER,
+  nombre TEXT NOT NULL,
+  descripcion TEXT,
+  precio REAL,
+  foto TEXT,
+  CONSTRAINT fk_negocio_productos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear tabla mensajes_pedidos
+CREATE TABLE IF NOT EXISTS mensajes_pedidos (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER,
+  tipo TEXT NOT NULL,
+  mensaje TEXT NOT NULL,
+  CONSTRAINT fk_negocio_mensajes_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear tabla pedidos
+CREATE TABLE IF NOT EXISTS pedidos (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER,
+  numero_cliente TEXT NOT NULL,
+  items TEXT NOT NULL,
+  estado TEXT DEFAULT 'recibido',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_negocio_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);

@@ -116,7 +116,7 @@ const AddBusinessPage: React.FC = () => {
       setMessage('Nombre y número de teléfono son requeridos');
       return;
     }
-
+  
     const businessToSave = {
       nombre: business.nombre,
       numero_telefono: business.numero_telefono,
@@ -126,7 +126,7 @@ const AddBusinessPage: React.FC = () => {
       horarios: business.horarios,
       contexto: business.contexto,
     };
-
+  
     axios.post('/api/negocios', businessToSave)
       .then(response => {
         setMessage('Negocio creado con éxito');
@@ -138,12 +138,13 @@ const AddBusinessPage: React.FC = () => {
         console.error('Error al crear el negocio:', error);
         // Mostrar un mensaje más específico basado en el error del backend
         if (error.response) {
+          const errorMessage = error.response.data?.error || 'Error desconocido';
           if (error.response.status === 400) {
             setMessage('Nombre y número de teléfono son requeridos');
-          } else if (error.response.status === 500 && error.response.data.error.includes('UNIQUE constraint failed')) {
+          } else if (error.response.status === 500 && errorMessage.includes('UNIQUE constraint failed')) {
             setMessage('El número de teléfono ya está registrado');
           } else {
-            setMessage(`Error al crear el negocio: ${error.response.data.error || 'Error desconocido'}`);
+            setMessage(`Error al crear el negocio: ${errorMessage}`);
           }
         } else {
           setMessage('Error al conectar con el servidor');
