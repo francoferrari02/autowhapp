@@ -551,7 +551,7 @@ app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
   });
 });
 
-app.post('/api/negocios', (req, res) => {
+app.post('/api/negocios', async (req, res) => {
   const {
     nombre,
     numero_telefono,
@@ -562,7 +562,12 @@ app.post('/api/negocios', (req, res) => {
     contexto = '',
     estado_bot = 1,
     modulo_pedidos = 0,
-    modulo_reservas = 0
+    modulo_reservas = 0,
+    modulo_recordatorios = 0,
+    appointment_duration = 60,
+    break_between = 15,
+    hora_inicio_default = '09:00',
+    hora_fin_default = '18:00'
   } = req.body;
 
   console.log('Datos recibidos en POST /api/negocios:', req.body);
@@ -590,31 +595,42 @@ app.post('/api/negocios', (req, res) => {
     Domingo: { open: '09:00', close: '18:00' },
   });
 
-  db.run(
-    `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, estado_bot, modulo_pedidos, modulo_reservas)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-    [
-      nombre,
-      normalizedNumeroTelefono,
-      tipo_negocio || 'personalizado',
-      localidad || '',
-      direccion || '',
-      horariosString,
-      contexto || '',
-      estado_bot ? 1 : 0,
-      modulo_pedidos ? 1 : 0,
-      modulo_reservas ? 1 : 0
-    ],
-    function (err) {
-      if (err) {
-        console.error('Error al insertar negocio:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-      const negocioId = this.lastID;
-      console.log('Negocio insertado con éxito, ID:', negocioId);
-      res.json({ success: true, negocioId });
+  try {
+    const result = await db.query(
+      `INSERT INTO negocios (
+        nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto,
+        estado_bot, modulo_pedidos, modulo_reservas, modulo_recordatorios,
+        appointment_duration, break_between, hora_inicio_default, hora_fin_default
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING id`,
+      [
+        nombre,
+        normalizedNumeroTelefono,
+        tipo_negocio || 'personalizado',
+        localidad || '',
+        direccion || '',
+        horariosString,
+        contexto || '',
+        estado_bot ? 1 : 0,
+        modulo_pedidos ? 1 : 0,
+        modulo_reservas ? 1 : 0,
+        modulo_recordatorios ? 1 : 0,
+        appointment_duration,
+        break_between,
+        hora_inicio_default,
+        hora_fin_default
+      ]
+    );
+    const negocioId = result.rows[0].id;
+    console.log('Negocio insertado con éxito, ID:', negocioId);
+    res.json({ success: true, negocioId });
+  } catch (err) {
+    console.error('Error al insertar negocio:', err.message);
+    if (err.message.includes('unique constraint') || err.message.includes('numero_telefono')) {
+      return res.status(400).json({ error: 'El número de teléfono ya está registrado' });
     }
-  );
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.put('/api/negocio/:id', (req, res) => {
@@ -1092,14 +1108,62 @@ app.get('/api/productosVendidos/:negocioId', (req, res) => {
 });
 
 app.get('/api/ventasPorSemana/:negocioId', (req, res) => {
-    const { negocioId } = req.params;
-    const { year, month } = req.query;
-    console.log(`Solicitud GET /api/ventasPorSemana/${negocioId})`);
-    if (!negocioId) {
-        return res.status(400).json({ error: 'negocioId es requerido' });
+  const { negocioId } = req.params;
+  const { year, month } = req.query;
+  console.log(`Solicitud GET /api/ventasPorSemana/${negocioId}`, { year, month });
+
+  if (!negocioId) {
+    return res.status(400).json({ error: 'negocioId es requerido' });
+  }
+
+  let query = 'SELECT created_at, items FROM pedidos WHERE negocio_id = $1';
+  const params = [negocioId];
+
+  if (year && month) {
+    query += ' AND EXTRACT(YEAR FROM created_at) = $2 AND EXTRACT(MONTH FROM created_at) = $3';
+    params.push(year, month);
+  }
+
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      console.error('Error al obtener pedidos:', err.message);
+      return res.status(500).json({ error: err.message });
     }
-    res.json();
+
+    const ventasPorSemana = {};
+    for (const row of rows) {
+      const date = new Date(row.created_at);
+      const weekNumber = getWeekNumber(date);
+      const key = `${date.getFullYear()}-W${weekNumber}`;
+
+      if (!ventasPorSemana[key]) {
+        ventasPorSemana[key] = { total: 0, items: {} };
+      }
+
+      try {
+        const items = JSON.parse(row.items);
+        for (const item of items) {
+          const { nombre, cantidad } = item;
+          ventasPorSemana[key].items[nombre] = (ventasPorSemana[key].items[nombre] || 0) + cantidad;
+          ventasPorSemana[key].total += cantidad;
+        }
+      } catch (e) {
+        console.error('Error al parsear items:', row.items);
+      }
+    }
+
+    res.json(ventasPorSemana);
+  });
 });
+
+// Helper function to get ISO week number
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
 
 // Servir archivos estáticos
 app.use(express.static(path.join(__dirname, '../frontend/build')));
