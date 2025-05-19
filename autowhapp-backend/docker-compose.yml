@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./.wwebjs_auth:/usr/src/app/.wwebjs_auth
+      - ./.wwebjs_cache:/usr/src/app/.wwebjs_cache  # Añade esta línea
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=autowhapp
+      - DB_USER=autowhapp_user
+      - DB_PASSWORD=tu_contraseña_segura
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=autowhapp
+      - POSTGRES_USER=autowhapp_user
+      - POSTGRES_PASSWORD=tu_contraseña_segura
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autowhapp_user -d autowhapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
