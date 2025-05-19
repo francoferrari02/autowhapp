@@ -16,7 +16,7 @@ const NAV_ITEMS = [
     id: 'config',
     label: 'Chatbot',
     icon: ChatBubbleBottomCenterTextIcon,
-    path: '/',
+    path: '/dashboard', // Cambiado de '/' a '/dashboard'
   },
   {
     id: 'orders',
