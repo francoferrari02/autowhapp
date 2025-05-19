@@ -4,15 +4,17 @@ import OrdersPage from './pages/OrdersPage';
 import AddBusinessPage from './pages/AddBusinessPage';
 import ReservationsPage from './pages/ReservationsPage';
 import RemindersPage from './pages/RemindersPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import LoginPage from './pages/LoginPage';
 import { NegocioProvider } from './NegocioContext';
-import AnalyticsPage from './pages/AnalyticsPage';  
 
 const App: React.FC = () => {
   return (
     <NegocioProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<ConfigPage />} />
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/dashboard" element={<ConfigPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/add-business" element={<AddBusinessPage />} />
           <Route path="/reservations" element={<ReservationsPage />} />

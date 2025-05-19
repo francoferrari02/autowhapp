@@ -25,6 +25,7 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "axios": "^1.8.4",
+    "framer-motion": "^12.12.1",
     "http-proxy-middleware": "^3.0.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -32,11 +33,12 @@
     "react-router-dom": "^7.5.2",
     "react-scripts": "5.0.1",
     "recharts": "^2.15.3",
+    "tailwind-merge": "^3.3.0",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-app-rewired start",
+    "start": "react-scripts start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"
@@ -60,8 +62,7 @@
     ]
   },
   "resolutions": {
-    "nth-check": "2.0.1",
-    "postcss": "8.4.47"
+    "nth-check": "2.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
