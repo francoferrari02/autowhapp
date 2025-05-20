@@ -7,6 +7,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { useNegocio } from '../NegocioContext';
+import { getApiUrl } from '../config';
 
 const businessTypes = [
   { value: '', label: 'Seleccionar' },
@@ -89,7 +90,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   useEffect(() => {
     setError(null);
     console.log('Cargando negocio con ID:', negocioId);
-    axios.get(`http://localhost:3000/api/negocio/${negocioId}`)
+    axios.get(getApiUrl(`/api/negocio/${negocioId}`))
       .then(response => {
         const data = response.data as {
           id: number;
@@ -143,7 +144,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         setBusiness(null);
       });
 
-    axios.get(`http://localhost:3000/api/faqs/${negocioId}`)
+    axios.get(getApiUrl(`/api/faqs/${negocioId}`))
       .then(response => {
         const mapped = (response.data as { id: number; pregunta: string; respuesta: string }[]).map((f) => ({
           id: f.id,
@@ -210,11 +211,9 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
     const toDelete = faqs[index];
     try {
       if (toDelete.id) {
-        // Eliminar FAQ del backend
-        await axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`);
+        await axios.delete(getApiUrl(`/api/faqs/${toDelete.id}`));
       }
-      // Actualizar la lista de FAQs desde el backend
-      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
+      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(getApiUrl(`/api/faqs/${negocioId}`));
       setFaqs(res.data.map((f) => ({
         id: f.id,
         question: f.pregunta,
@@ -238,7 +237,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         horarios: JSON.stringify(business.hours),
         contexto: context,
       };
-      await axios.put(`http://localhost:3000/api/negocio/${negocioId}`, updatedBusiness);
+      await axios.put(getApiUrl(`/api/negocio/${negocioId}`), updatedBusiness);
 
       // CRUD FAQs
       for (const faq of faqs) {
@@ -248,21 +247,21 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         }
 
         if (!faq.id) {
-          const response = await axios.post<CreateFaqResponse>('http://localhost:3000/api/faqs', {
+          const response = await axios.post<CreateFaqResponse>(getApiUrl('/api/faqs'), {
             negocioId,
-            pregunta: faq.question.trim(),
-            respuesta: faq.answer.trim(),
+            pregunta: faq.question,
+            respuesta: faq.answer,
           });
           faq.id = response.data.id;
         } else {
-          await axios.put(`http://localhost:3000/api/faqs/${faq.id}`, {
-            pregunta: faq.question.trim(),
-            respuesta: faq.answer.trim(),
+          await axios.put(getApiUrl(`/api/faqs/${faq.id}`), {
+            pregunta: faq.question,
+            respuesta: faq.answer,
           });
         }
       }
 
-      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
+      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(getApiUrl(`/api/faqs/${negocioId}`));
       setFaqs(res.data.map((f) => ({
         id: f.id,
         question: f.pregunta,
@@ -270,7 +269,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
       })));
 
       setMessage('Configuración guardada con éxito');
-      refreshNegocios(); // Actualizamos la lista de negocios en el contexto
+      refreshNegocios();
     } catch (error: any) {
       console.error('Error saving configuration:', error);
       setMessage(`Error al guardar la configuración: ${error.response?.data?.error || error.message}`);

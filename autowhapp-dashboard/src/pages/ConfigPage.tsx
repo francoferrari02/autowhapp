@@ -6,6 +6,7 @@ import MainConfig from '../components/MainConfig';
 import Products from '../components/Products';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext'; // Importa el hook del contexto
+import { getApiUrl } from '../config';
 
 const ConfigPage: React.FC = () => {
   const { negocioId } = useNegocio(); // Usa el negocioId del contexto
@@ -15,7 +16,7 @@ const ConfigPage: React.FC = () => {
   useEffect(() => {
     if (negocioId !== null) {
       console.log('Cargando datos del negocio con ID:', negocioId);
-      axios.get(`http://localhost:3000/api/negocio/${negocioId}`)
+      axios.get(getApiUrl(`/api/negocio/${negocioId}`))
         .then(res => {
           console.log('Datos del negocio recibidos:', res.data);
           setNegocio(res.data);
@@ -31,7 +32,7 @@ const ConfigPage: React.FC = () => {
   const handleToggleBot = (nuevoEstado: boolean) => {
     if (negocioId !== null) {
       console.log('Actualizando estado del bot:', { negocioId, estadoBot: nuevoEstado });
-      axios.post('http://localhost:3000/api/actualizar-estado-bot', { negocioId, estadoBot: nuevoEstado })
+      axios.post(getApiUrl('/api/actualizar-estado-bot'), { negocioId, estadoBot: nuevoEstado })
         .then(() => {
           setNegocio((prev: any) => prev ? { ...prev, estado_bot: nuevoEstado ? 1 : 0 } : prev);
         })

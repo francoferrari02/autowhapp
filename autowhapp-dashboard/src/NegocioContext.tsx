@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
+import { getApiUrl } from './config';
 
 interface Negocio {
   id: number;
@@ -20,7 +21,7 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [negocios, setNegocios] = useState<Negocio[]>([]);
 
   const fetchNegocios = () => {
-    axios.get<Negocio[]>('http://localhost:3000/api/negocios')
+    axios.get<Negocio[]>(getApiUrl('/api/negocios'))
       .then(response => {
         const negociosRes = Array.isArray(response.data) ? response.data : [];
         setNegocios(negociosRes);

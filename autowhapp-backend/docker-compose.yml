@@ -1,13 +1,22 @@
 version: '3.8'
 
 services:
+  frontend:
+    build: ../autowhapp-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - REACT_APP_API_URL=http://app:3000
+    depends_on:
+      - app
+
   app:
     build: .
     ports:
       - "3000:3000"
     volumes:
       - ./.wwebjs_auth:/usr/src/app/.wwebjs_auth
-      - ./.wwebjs_cache:/usr/src/app/.wwebjs_cache  # Añade esta línea
+      - ./.wwebjs_cache:/usr/src/app/.wwebjs_cache
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -17,21 +26,46 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB=autowhapp
-      - POSTGRES_USER=autowhapp_user
-      - POSTGRES_PASSWORD=tu_contraseña_segura
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./00-init.sql:/docker-entrypoint-initdb.d/00-init.sql
+      - ./01-setup-schema.sql:/docker-entrypoint-initdb.d/01-setup-schema.sql
+      - ../init_schema.sql:/docker-entrypoint-initdb.d/02-init-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U autowhapp_user -d autowhapp"]
       interval: 5s
       timeout: 5s
       retries: 5
+    command: >
+      postgres 
+      -c 'max_connections=1000'
+      -c 'shared_buffers=256MB'
+      -c 'dynamic_shared_memory_type=posix'
+
+  n8n:
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_LOG_LEVEL=debug
+      - N8N_TRUST_PROXY=true
+      - WEBHOOK_URL=https://6963-190-224-155-63.ngrok-free.app
+    volumes:
+      - ./n8n-workflows:/home/node/.n8n
+    depends_on:
+      - app
 
 volumes:
   postgres_data:
