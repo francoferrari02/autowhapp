@@ -1,7 +1,37 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const axios = require('axios');
 const qrcode = require('qrcode');
-const db = require('../db');
+const { Pool } = require('pg');
+
+// Usar la misma configuración de base de datos que en index.js
+const db = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT || 5432,
+});
+
+// Test database connection
+db.connect()
+  .then(() => {
+    console.log('✅ WhatsApp client database connection successful');
+    console.log('Database config:', {
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT
+    });
+  })
+  .catch(err => {
+    console.error('❌ WhatsApp client database connection error:', err);
+    console.error('Database config:', {
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      port: process.env.DB_PORT
+    });
+  });
 
 const clients = {};
 
@@ -29,9 +59,22 @@ function initializeClientForNegocio(negocio) {
   const negocioId = negocio.id;
   console.log(`Inicializando cliente para negocio ${negocioId}: ${negocio.nombre}`);
 
+  // Initialize clients[negocioId] immediately with a default structure
+  if (!clients[negocioId]) {
+    clients[negocioId] = {
+      client: null,
+      qr: null,
+      authenticated: false,
+      negocio: { ...negocio },
+    };
+  }
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: `negocio-${negocioId}` }),
   });
+
+  // Update the client reference in clients[negocioId]
+  clients[negocioId].client = client;
 
   client.on('qr', (qr) => {
     console.log(`Generando QR para negocio ${negocioId}: ${negocio.nombre}`);
@@ -40,11 +83,11 @@ function initializeClientForNegocio(negocio) {
         console.error('Error al generar QR:', err);
         return;
       }
-      clients[negocioId] = { 
-        client, 
-        qr: url, 
+      // Update the existing clients[negocioId] object
+      clients[negocioId] = {
+        ...clients[negocioId],
+        qr: url,
         authenticated: false,
-        negocio: { ...negocio }
       };
       console.log(`QR generado exitosamente para negocio ${negocioId}`);
     });
@@ -73,9 +116,13 @@ function initializeClientForNegocio(negocio) {
     const negocioAutenticado = await identificarNegocio(clientNumber);
 
     if (negocioAutenticado && negocioAutenticado.id === negocioId) {
-      clients[negocioId].authenticated = true;
-      clients[negocioId].negocio = { ...negocioAutenticado };
-      clients[negocioId].qr = null;
+      // Update the existing clients[negocioId] object
+      clients[negocioId] = {
+        ...clients[negocioId],
+        authenticated: true,
+        negocio: { ...negocioAutenticado },
+        qr: null,
+      };
       console.log(`Negocio ${negocioId} autenticado con número ${clientNumber}`);
     } else {
       console.error('⚠️ Número no asociado a este negocio:', clientNumber);
@@ -221,7 +268,7 @@ function initializeClientForNegocio(negocio) {
       numeroCliente += '@c.us';
     }
 
-    const webhookUrl = 'https://6963-190-224-155-63.ngrok-free.app/webhook/procesar-mensaje';
+    const webhookUrl = 'https://f9e3-190-189-158-117.ngrok-free.app/webhook/procesar-mensaje';
     const payload = {
       mensaje: msg.body,
       numeroCliente,
@@ -238,67 +285,16 @@ function initializeClientForNegocio(negocio) {
       const reservaData = detectarReserva(respuesta);
       const pedidoData = detectarPedido(respuesta);
 
+      // Aquí deberías obtener el token de acceso de alguna manera
+      // Por ejemplo, pasándolo desde el frontend en la solicitud
+      const token = msg.token; // Asegúrate de que el token se pase correctamente
+
       if (reservaData) {
         console.log('🔍 Reserva detectada:', reservaData);
-        const backendUrl = `http://localhost:3000/api/reservas/${reservaData.negocioId}`;
-        try {
-          const backendRes = await axios.post(backendUrl, {
-            fecha: reservaData.fecha,
-            hora_inicio: reservaData.hora_inicio,
-            hora_fin: reservaData.hora_fin,
-            ocupado: 1,
-            cliente: 'Cliente vía WhatsApp',
-            telefono: reservaData.numeroCliente,
-            descripcion: 'Reserva confirmada por bot'
-          });
-          console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
-          if (backendRes.status === 200 && backendRes.data.success) {
-            let confirmMessage = "¡Tu reserva ha sido confirmada con éxito!\nDetalle de la reserva:\n";
-            confirmMessage += `- Fecha: ${reservaData.fecha}\n`;
-            confirmMessage += `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
-            await client.sendMessage(msg.from, confirmMessage);
-            console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
-          } else {
-            console.error('❌ Registro de reserva falló en el backend:', backendRes.data);
-            await client.sendMessage(msg.from, 'Error al confirmar la reserva, intentá de nuevo.');
-          }
-        } catch (backendErr) {
-          console.error('❌ Error al registrar reserva en el backend:', backendErr.message);
-          await client.sendMessage(msg.from, 'Error al confirmar la reserva, intentá de nuevo.');
-        }
-        
+        await handleReserva(reservaData, token); // Pasar el token aquí
       } else if (pedidoData) {
         console.log('🔍 Pedido detectado:', pedidoData);
-        const backendUrl = `http://localhost:3000/api/pedidos/${pedidoData.negocioId}`;
-        try {
-          const total = pedidoData.items.reduce((sum, item) => {
-            const product = negocioActualizado.productos.find((p) => p.nombre === item.nombre);
-            const price = product ? product.precio : 0;
-            return sum + price * item.cantidad;
-          }, 0);
-
-          const backendRes = await axios.post(backendUrl, {
-            numero_cliente: pedidoData.numeroCliente,
-            items: pedidoData.items,
-            estado: 'recibido',
-          });
-          console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
-          if (backendRes.status === 200 && backendRes.data.success) {
-            let confirmMessage = "¡Tu pedido ha sido registrado con éxito!\nDetalle del pedido:\n";
-            pedidoData.items.forEach(item => {
-              confirmMessage += `- ${item.nombre} (cantidad: ${item.cantidad})\n`;
-            });
-            confirmMessage += `Total: $${total.toFixed(2)}\n`;
-            await client.sendMessage(msg.from, confirmMessage);
-            console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
-          } else {
-            console.error('❌ Registro de pedido falló en el backend:', backendRes.data);
-            await client.sendMessage(msg.from, 'Error al registrar el pedido, intentá de nuevo.');
-          }
-        } catch (backendErr) {
-          console.error('❌ Error al registrar pedido en el backend:', backendErr.message);
-          await client.sendMessage(msg.from, 'Error al registrar el pedido, intentá de nuevo.');
-        }
+        await handlePedido(pedidoData, token); // Pasar el token aquí
       } else {
         await client.sendMessage(msg.from, respuesta);
         console.log('📨 Respuesta enviada (no es reserva ni pedido):', respuesta);
@@ -413,6 +409,72 @@ function detectarPedido(respuesta) {
     }
   }
   return null;
+}
+
+async function handleReserva(reservaData, token) {
+  const backendUrl = `http://localhost:3000/api/reservas/${reservaData.negocioId}`;
+  try {
+    const backendRes = await axios.post(backendUrl, {
+      fecha: reservaData.fecha,
+      hora_inicio: reservaData.hora_inicio,
+      hora_fin: reservaData.hora_fin,
+      ocupado: 1,
+      cliente: 'Cliente vía WhatsApp',
+      telefono: reservaData.numeroCliente,
+      descripcion: 'Reserva confirmada por bot'
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
+    if (backendRes.status === 200 && backendRes.data.success) {
+      let confirmMessage = "¡Tu reserva ha sido confirmada con éxito!\nDetalle de la reserva:\n";
+      confirmMessage += `- Fecha: ${reservaData.fecha}\n`;
+      confirmMessage += `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
+      await client.sendMessage(msg.from, confirmMessage);
+      console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
+    } else {
+      console.error('❌ Registro de reserva falló en el backend:', backendRes.data);
+      await client.sendMessage(msg.from, 'Error al confirmar la reserva, intentá de nuevo.');
+    }
+  } catch (backendErr) {
+    console.error('❌ Error al registrar reserva en el backend:', backendErr.message);
+    await client.sendMessage(msg.from, 'Error al confirmar la reserva, intentá de nuevo.');
+  }
+}
+
+async function handlePedido(pedidoData, token) {
+  const backendUrl = `http://localhost:3000/api/pedidos/${pedidoData.negocioId}`;
+  try {
+    const backendRes = await axios.post(backendUrl, {
+      numero_cliente: pedidoData.numeroCliente,
+      items: pedidoData.items,
+      estado: 'recibido',
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
+    if (backendRes.status === 200 && backendRes.data.success) {
+      let confirmMessage = "¡Tu pedido ha sido registrado con éxito!\nDetalle del pedido:\n";
+      pedidoData.items.forEach(item => {
+        confirmMessage += `- ${item.nombre} (cantidad: ${item.cantidad})\n`;
+      });
+      confirmMessage += `Total: $${total.toFixed(2)}\n`;
+      await client.sendMessage(msg.from, confirmMessage);
+      console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
+    } else {
+      console.error('❌ Registro de pedido falló en el backend:', backendRes.data);
+      await client.sendMessage(msg.from, 'Error al registrar el pedido, intentá de nuevo.');
+    }
+  } catch (backendErr) {
+    console.error('❌ Error al registrar pedido en el backend:', backendErr.message);
+    await client.sendMessage(msg.from, 'Error al registrar el pedido, intentá de nuevo.');
+  }
 }
 
 module.exports = { clients, initializeClients };

@@ -1,13 +1,10 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth0 } from '@auth0/auth0-react';
 import Hero from '../components/Hero';
 import AnimatedGradientText from '../components/AnimatedText';
 
 const LoginPage: React.FC = () => {
-  const navigate = useNavigate();
-
-  const handleLogin = () => navigate('/dashboard');
-  const handleRegister = () => console.log('Register clicked');
+  const { loginWithRedirect } = useAuth0();
 
   return (
     <Hero
@@ -21,16 +18,14 @@ const LoginPage: React.FC = () => {
       }
       subtitle={
         <AnimatedGradientText
-          className="text-xl font-bold font-poppins" // Added font-bold aquí
+          className="text-xl font-bold font-poppins"
           duration={6}
-          
         >
           Automatización inteligente para tu negocio
         </AnimatedGradientText>
       }
       actions={[
-        { label: 'Iniciar Sesión', onClick: handleLogin, variant: 'default' },
-        { label: 'Registrarse', onClick: handleRegister, variant: 'outline' },
+        { label: 'Iniciar Sesión', onClick: () => loginWithRedirect(), variant: 'default' }
       ]}
     />
   );
