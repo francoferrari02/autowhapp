@@ -19,15 +19,16 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <Auth0Provider
-  domain="dev-15eg10mp60jkcv6l.us.auth0.com"
-  clientId="lMpFyi8jIoSYqf38GvrvFiFF3Gko8cPK"
-  authorizationParams={{
-    redirect_uri: window.location.origin,
-    audience: "https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/"
-  }}
->
-  <App />
-</Auth0Provider>
+      domain="dev-15eg10mp60jkcv6l.us.auth0.com"
+      clientId="lMpFyi8jIoSYqf38GvrvFiFF3Gko8cPK"
+      authorizationParams={{
+        redirect_uri: window.location.origin,
+        audience: "https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/",
+        scope: "openid profile email read:negocios write:negocios"
+      }}
+    >
+      <App />
+    </Auth0Provider>
   </React.StrictMode>
 );
 

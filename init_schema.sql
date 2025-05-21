@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE TABLE IF NOT EXISTS negocios (
   id SERIAL PRIMARY KEY,
   nombre TEXT NOT NULL,
@@ -24,7 +25,10 @@ CREATE TABLE IF NOT EXISTS negocios (
   appointment_duration INTEGER DEFAULT 60,
   break_between INTEGER DEFAULT 15,
   hora_inicio_default TEXT DEFAULT '09:00',
-  hora_fin_default TEXT DEFAULT '18:00'
+  hora_fin_default TEXT DEFAULT '18:00',
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Crear tabla reservas
