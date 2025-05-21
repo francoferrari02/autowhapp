@@ -17,11 +17,11 @@ const port = process.env.PORT || 3000;
 
 // Configuración de la base de datos
 const dbConfig = {
-  user: 'autowhapp_user',
-  host: 'localhost',
-  database: 'autowhapp',
-  password: 'Autowhapp123',
-  port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'db',
+  database: process.env.DB_NAME || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgres',
+  port: process.env.DB_PORT || 5432,
 };
 
 console.log('Database configuration:', {

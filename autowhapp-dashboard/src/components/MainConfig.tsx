@@ -8,6 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { useNegocio } from '../NegocioContext';
 import { useAuth0 } from '@auth0/auth0-react';
+import { getApiUrl } from '../config';
 
 const businessTypes = [
   { value: '', label: 'Seleccionar' },

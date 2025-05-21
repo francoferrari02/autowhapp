@@ -1,15 +1,6 @@
 version: '3.8'
 
 services:
-  frontend:
-    build: ../autowhapp-dashboard
-    ports:
-      - "3001:3000"
-    environment:
-      - REACT_APP_API_URL=http://app:3000
-    depends_on:
-      - app
-
   app:
     build: .
     ports:
@@ -17,12 +8,14 @@ services:
     volumes:
       - ./.wwebjs_auth:/usr/src/app/.wwebjs_auth
       - ./.wwebjs_cache:/usr/src/app/.wwebjs_cache
+    env_file:
+      - .env
     environment:
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME=autowhapp
-      - DB_USER=autowhapp_user
-      - DB_PASSWORD=tu_contraseña_segura
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=postgres
     depends_on:
       db:
         condition: service_healthy
@@ -35,22 +28,24 @@ services:
       POSTGRES_DB: postgres
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./00-init.sql:/docker-entrypoint-initdb.d/00-init.sql
-      - ./01-setup-schema.sql:/docker-entrypoint-initdb.d/01-setup-schema.sql
-      - ../init_schema.sql:/docker-entrypoint-initdb.d/02-init-schema.sql
+      - ../init_schema.sql:/docker-entrypoint-initdb.d/00-init-schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U autowhapp_user -d autowhapp"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
-    command: >
-      postgres 
-      -c 'max_connections=1000'
-      -c 'shared_buffers=256MB'
-      -c 'dynamic_shared_memory_type=posix'
+
+  frontend:
+    build: ../autowhapp-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - REACT_APP_API_URL=http://app:3000
+    depends_on:
+      - app
 
   n8n:
     image: n8nio/n8n

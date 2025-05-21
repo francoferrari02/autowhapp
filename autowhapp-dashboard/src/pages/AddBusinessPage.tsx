@@ -168,11 +168,9 @@ const AddBusinessPage: React.FC = () => {
       });
       console.log('Audience:', process.env.REACT_APP_AUTH0_AUDIENCE);
       const token = await getAccessTokenSilently({
-        
         authorizationParams: {
           audience: process.env.REACT_APP_AUTH0_AUDIENCE,
-          //scope: "read:negocios write:negocios"
-          
+          scope: "read:negocios write:negocios"
         }
       });
       console.log('TOKEN:', token);
