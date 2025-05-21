@@ -7,6 +7,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { useNegocio } from '../NegocioContext';
+import { useAuth0 } from '@auth0/auth0-react';
 
 const businessTypes = [
   { value: '', label: 'Seleccionar' },
@@ -69,10 +70,11 @@ const LabeledInput: React.FC<{
 
 const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   const { refreshNegocios } = useNegocio();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const [business, setBusiness] = useState<Business | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<string>('');
-  const [faqs, setFaqs] = useState<FaqWithId[]>([]);
+  const [faqs, setFaqs] = useState<FaqWithId[]>([{ question: '', answer: '' }]);
   const [message, setMessage] = useState<string>('');
   const [customType, setCustomType] = useState<string>('');
 
@@ -87,40 +89,28 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   };
 
   useEffect(() => {
-    setError(null);
-    console.log('Cargando negocio con ID:', negocioId);
-    axios.get(`http://localhost:3000/api/negocio/${negocioId}`)
-      .then(response => {
-        const data = response.data as {
-          id: number;
-          nombre: string;
-          tipo_negocio: string;
-          localidad: string;
-          direccion: string;
-          horarios?: string;
-          estado_bot: boolean;
-          contexto?: string;
-        };
+    const fetchData = async () => {
+      setError(null);
+      try {
+        const token = await getAccessTokenSilently({
+          authorizationParams: {
+            audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+          }
+        });
+        const businessRes = await axios.get(`http://localhost:3000/api/negocio/${negocioId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = businessRes.data as any;
         console.log('Datos del negocio cargados:', data);
         let parsedHours: Record<string, { open: string; close: string }>;
         try {
           parsedHours = data.horarios ? JSON.parse(data.horarios) : defaultHours;
-          // Validar que parsedHours tenga la estructura correcta
           const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-          const isValidHours = days.every(day => 
-            parsedHours[day] && 
-            typeof parsedHours[day] === 'object' && 
-            'open' in parsedHours[day] && 
-            'close' in parsedHours[day]
+          const isValidHours = days.every(day =>
+            parsedHours[day] && typeof parsedHours[day] === 'object' && 'open' in parsedHours[day] && 'close' in parsedHours[day]
           );
-          if (!isValidHours) {
-            console.warn('Horarios no tienen el formato esperado, usando valores por defecto');
-            parsedHours = defaultHours;
-          }
-        } catch (e) {
-          console.error('Error al parsear horarios:', e);
-          parsedHours = defaultHours;
-        }
+          if (!isValidHours) parsedHours = defaultHours;
+        } catch (e) { parsedHours = defaultHours; }
         setBusiness({
           id: data.id,
           name: data.nombre,
@@ -130,33 +120,30 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           hours: parsedHours,
           isActive: data.estado_bot,
         });
-        setContext(data.contexto || '');
+        setContext((data.contexto || '') as string);
         setCustomType(businessTypes.find(bt => bt.value === data.tipo_negocio) ? '' : data.tipo_negocio);
-      })
-      .catch((error: any) => {
-        console.error('Error fetching business data:', error);
-        if (error.response?.status === 404) {
-          setError('Negocio no encontrado');
-        } else {
-          setError('Error al cargar la configuración');
-        }
+      } catch (error) {
         setBusiness(null);
-      });
-
-    axios.get(`http://localhost:3000/api/faqs/${negocioId}`)
-      .then(response => {
-        const mapped = (response.data as { id: number; pregunta: string; respuesta: string }[]).map((f) => ({
-          id: f.id,
-          question: f.pregunta,
-          answer: f.respuesta,
-        }));
-        setFaqs(mapped);
-      })
-      .catch((error: any) => {
-        console.error('Error fetching FAQs:', error);
+        const err = error as any;
+        if (err.response?.status === 404) setError('Negocio no encontrado');
+        else setError('Error al cargar la configuración');
+      }
+      try {
+        const token = await getAccessTokenSilently({
+          authorizationParams: {
+            audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+          }
+        });
+        const faqsRes = await axios.get(`http://localhost:3000/api/faqs/${negocioId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setFaqs((faqsRes.data as any[]).map((f: any) => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
+      } catch (error) {
         setFaqs([]);
-      });
-  }, [negocioId]);
+      }
+    };
+    fetchData();
+  }, [negocioId, getAccessTokenSilently]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -209,20 +196,22 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   const removeFaq = async (index: number) => {
     const toDelete = faqs[index];
     try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
       if (toDelete.id) {
-        // Eliminar FAQ del backend
-        await axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`);
+        await axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       }
-      // Actualizar la lista de FAQs desde el backend
-      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
-      setFaqs(res.data.map((f) => ({
-        id: f.id,
-        question: f.pregunta,
-        answer: f.respuesta,
-      })));
+      const res = await axios.get(`http://localhost:3000/api/faqs/${negocioId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setFaqs((res.data as any[]).map((f: any) => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
       setMessage('FAQ eliminada con éxito');
     } catch (error: any) {
-      console.error('Error al eliminar FAQ:', error);
       setMessage(`Error al eliminar FAQ: ${error.response?.data?.error || error.message}`);
     }
   };
@@ -230,6 +219,11 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
   const handleSave = async () => {
     if (!business) return;
     try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
       const updatedBusiness = {
         nombre: business.name,
         tipo_negocio: business.type,
@@ -238,41 +232,39 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         horarios: JSON.stringify(business.hours),
         contexto: context,
       };
-      await axios.put(`http://localhost:3000/api/negocio/${negocioId}`, updatedBusiness);
-
-      // CRUD FAQs
+      await axios.put(`http://localhost:3000/api/negocio/${negocioId}`, updatedBusiness, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       for (const faq of faqs) {
         if (!faq.question.trim() || !faq.answer.trim()) {
           setMessage(`Error: La FAQ "${faq.question || 'sin pregunta'}" tiene campos vacíos. Por favor, completa ambos campos.`);
           return;
         }
-
         if (!faq.id) {
           const response = await axios.post<CreateFaqResponse>('http://localhost:3000/api/faqs', {
             negocioId,
             pregunta: faq.question.trim(),
             respuesta: faq.answer.trim(),
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
           });
           faq.id = response.data.id;
         } else {
           await axios.put(`http://localhost:3000/api/faqs/${faq.id}`, {
             pregunta: faq.question.trim(),
             respuesta: faq.answer.trim(),
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
           });
         }
       }
-
-      const res = await axios.get<{ id: number; pregunta: string; respuesta: string }[]>(`http://localhost:3000/api/faqs/${negocioId}`);
-      setFaqs(res.data.map((f) => ({
-        id: f.id,
-        question: f.pregunta,
-        answer: f.respuesta,
-      })));
-
+      const res = await axios.get(`http://localhost:3000/api/faqs/${negocioId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setFaqs((res.data as any[]).map((f: any) => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
       setMessage('Configuración guardada con éxito');
-      refreshNegocios(); // Actualizamos la lista de negocios en el contexto
+      refreshNegocios();
     } catch (error: any) {
-      console.error('Error saving configuration:', error);
       setMessage(`Error al guardar la configuración: ${error.response?.data?.error || error.message}`);
     }
   };
@@ -402,54 +394,53 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
 
         {/* FAQs */}
         <h3 className="text-xl font-bold text-black mb-4 font-poppins">Preguntas Frecuentes (FAQs)</h3>
-            {faqs.map((faq, index) => (
-            <div key={index} className="flex flex-col md:flex-row gap-3 mb-4 items-center">
-                <input
-                    type="text"
-                    value={faq.question}
-                    onChange={(e) => handleFaqChange(index, 'question', e.target.value)}
-                    placeholder="Pregunta"
-                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins"
-                />
-                <input
-                    type="text"
-                    value={faq.answer}
-                    onChange={(e) => handleFaqChange(index, 'answer', e.target.value)}
-                    placeholder="Respuesta"
-                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins"
-                />
-                <button
-                    onClick={() => removeFaq(index)}
-                    aria-label="Eliminar pregunta frecuente"
-                    title="Eliminar FAQ"
-                    className="text-primary-red hover:text-secondary-red p-2 rounded focus:outline-none"
-                >
-                <DeleteIcon />
-                </button>
-            </div>
+        {faqs.map((faq, index) => (
+          <div key={index} className="flex flex-col md:flex-row gap-3 mb-4 items-center">
+            <input
+              type="text"
+              value={faq.question}
+              onChange={(e) => handleFaqChange(index, 'question', e.target.value)}
+              placeholder="Pregunta"
+              style={{ background: 'white', color: 'black', border: '1px solid #2563EB', zIndex: 10 }}
+              className="flex-1 p-2 rounded-lg font-poppins"
+            />
+            <input
+              type="text"
+              value={faq.answer}
+              onChange={(e) => handleFaqChange(index, 'answer', e.target.value)}
+              placeholder="Respuesta"
+              className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins"
+            />
+            <button
+              onClick={() => removeFaq(index)}
+              aria-label="Eliminar pregunta frecuente"
+              title="Eliminar FAQ"
+              className="text-primary-red hover:text-secondary-red p-2 rounded focus:outline-none"
+            >
+              <DeleteIcon />
+            </button>
+          </div>
         ))}
-
-        {/* Botones */}
         <div className="flex justify-between mt-4">
-            <button
-                onClick={addFaq}
-                className="bg-primary-blue text-white px-4 py-2 rounded-lg hover:bg-[#153E6F] font-poppins"
-            >
-                AÑADIR FAQ
-            </button>
-            <button
-                onClick={handleSave}
-                className="bg-primary-green text-white px-4 py-2 rounded-lg hover:bg-secondary-green font-poppins"
-            >
-                GUARDAR CAMBIOS
-            </button>
+          <button
+            onClick={addFaq}
+            style={{ background: '#2563EB', color: 'white', border: '2px solid #153E6F', zIndex: 10 }}
+            className="px-4 py-2 rounded-lg font-poppins"
+          >
+            AÑADIR FAQ
+          </button>
+          <button
+            onClick={handleSave}
+            style={{ background: '#22C55E', color: 'white', border: '2px solid #15803D', zIndex: 10 }}
+            className="px-4 py-2 rounded-lg font-poppins"
+          >
+            GUARDAR CAMBIOS
+          </button>
         </div>
-
-        {/* Mensaje */}
         {message && (
-            <p className={`mt-4 font-poppins ${message.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
-                {message}
-            </p>
+          <p className={`mt-4 font-poppins ${message.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
+            {message}
+          </p>
         )}
       </div>
     </div>

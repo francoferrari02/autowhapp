@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, TextField, Modal } from '@mui/material';
 import CalendarComponent from '../components/Calendar';
-import Header from '../components/Header';
-import Sidebar from '../components/Sidebar';
 import ModuleStatus from '../components/ModuleStatus';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { CalendarEvent } from '../types';
+import { useAuth0 } from '@auth0/auth0-react';
 
 interface NegocioResponse {
   modulo_reservas: boolean;
@@ -30,6 +29,7 @@ interface NegocioResponse {
 
 const ReservationsPage: React.FC = () => {
   const { negocioId } = useNegocio();
+  const { getAccessTokenSilently } = useAuth0();
   const [moduloReservas, setModuloReservas] = useState<boolean>(false);
   const [appointmentHours, setAppointmentHours] = useState<Record<string, { open: string; close: string }>>({});
   const [reservas, setReservas] = useState<CalendarEvent[]>([]);
@@ -53,9 +53,15 @@ const ReservationsPage: React.FC = () => {
   // Función para cargar las reservas desde el servidor
   const fetchReservas = async () => {
     if (!negocioId) return;
-
     try {
-      const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`);
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const fetchedReservas = res.data.reservas
         ?.filter((reserva) => reserva.ocupado === 1)
         .map((reserva) => ({
@@ -68,8 +74,6 @@ const ReservationsPage: React.FC = () => {
           descripcion: reserva.descripcion,
           backgroundColor: '#FF5733',
         })) || [];
-
-      // Comparar las reservas actuales con las nuevas para evitar actualizaciones innecesarias
       setReservas((prevReservas) => {
         const prevIds = prevReservas.map(r => r.id);
         const newIds = fetchedReservas.map(r => r.id);
@@ -92,7 +96,14 @@ const ReservationsPage: React.FC = () => {
 
     const loadInitialData = async () => {
       try {
-        const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`);
+        const token = await getAccessTokenSilently({
+          authorizationParams: {
+            audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+          }
+        });
+        const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setModuloReservas(!!res.data.modulo_reservas);
 
         if (res.data.horarios) {
@@ -152,31 +163,43 @@ const ReservationsPage: React.FC = () => {
 
     // Limpiar el intervalo al desmontar el componente
     return () => clearInterval(intervalId);
-  }, [negocioId]);
+  }, [negocioId, getAccessTokenSilently]);
 
-  const handleToggleReservas = (nuevoEstado: boolean) => {
+  const handleToggleReservas = async (nuevoEstado: boolean) => {
     if (!negocioId) return;
-    axios
-      .post('http://localhost:3000/api/actualizar-modulo-reservas', { negocioId, moduloReservas: nuevoEstado })
-      .then(() => setModuloReservas(nuevoEstado))
-      .catch((err) => console.error('Error al actualizar estado de reservas:', err));
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      await axios.post('http://localhost:3000/api/actualizar-modulo-reservas', { negocioId, moduloReservas: nuevoEstado }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setModuloReservas(nuevoEstado);
+    } catch (err) {
+      console.error('Error al actualizar estado de reservas:', err);
+    }
   };
 
   const handleAddReservation = () => {
     setOpenAddModal(true);
   };
 
-  const handleSaveReservation = () => {
+  const handleSaveReservation = async () => {
     if (!negocioId || !newReservation.fecha || !newReservation.hora_inicio || !newReservation.hora_fin) {
       setMessage('Fecha, hora de inicio y hora de fin son requeridos');
       return;
     }
-
     const startDateTime = new Date(`${newReservation.fecha}T${newReservation.hora_inicio}:00Z`);
     const endDateTime = new Date(`${newReservation.fecha}T${newReservation.hora_fin}:00Z`);
-
-    axios
-      .post(`http://localhost:3000/api/reservas/${negocioId}`, {
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      const res = await axios.post(`http://localhost:3000/api/reservas/${negocioId}`, {
         fecha: newReservation.fecha,
         hora_inicio: newReservation.hora_inicio,
         hora_fin: newReservation.hora_fin,
@@ -184,29 +207,28 @@ const ReservationsPage: React.FC = () => {
         cliente: newReservation.cliente,
         telefono: newReservation.telefono,
         descripcion: newReservation.descripcion,
-      })
-      .then((res) => {
-        const newEvent = {
-          id: (res.data as { id: number }).id.toString(),
-          title: 'Reserva',
-          start: startDateTime,
-          end: endDateTime,
-          cliente: newReservation.cliente,
-          telefono: newReservation.telefono,
-          descripcion: newReservation.descripcion,
-          backgroundColor: '#FF5733',
-        };
-        setReservas((prev) => [...prev, newEvent]);
-        setMessage('Reserva añadida con éxito');
-        setOpenAddModal(false);
-        setNewReservation({ fecha: '', hora_inicio: '', hora_fin: '', cliente: '', telefono: '', descripcion: '' });
-        // Refrescar las reservas inmediatamente después de añadir una nueva
-        fetchReservas();
-      })
-      .catch((err) => {
-        console.error('Error al añadir reserva:', err);
-        setMessage(err.response?.data?.error || 'Error al añadir reserva');
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
+      const newEvent = {
+        id: (res.data as { id: number }).id.toString(),
+        title: 'Reserva',
+        start: startDateTime,
+        end: endDateTime,
+        cliente: newReservation.cliente,
+        telefono: newReservation.telefono,
+        descripcion: newReservation.descripcion,
+        backgroundColor: '#FF5733',
+      };
+      setReservas((prev) => [...prev, newEvent]);
+      setMessage('Reserva añadida con éxito');
+      setOpenAddModal(false);
+      setNewReservation({ fecha: '', hora_inicio: '', hora_fin: '', cliente: '', telefono: '', descripcion: '' });
+      fetchReservas();
+    } catch (err) {
+      console.error('Error al añadir reserva:', (err as any));
+      setMessage((err as any).response?.data?.error || 'Error al añadir reserva');
+    }
   };
 
   const handleEventClick = (info: { event: any }) => {
@@ -223,27 +245,30 @@ const ReservationsPage: React.FC = () => {
     setOpenModal(true);
   };
 
-  const handleCancelReservation = () => {
+  const handleCancelReservation = async () => {
     if (!selectedEvent?.id || !negocioId || isNaN(Number(selectedEvent.id))) {
       setMessage('Error: No se pudo identificar la reserva para cancelar');
       return;
     }
-
-    axios
-      .delete(`http://localhost:3000/api/reservas/${negocioId}/${selectedEvent.id}`)
-      .then(() => {
-        setReservas((prev) => prev.filter((res) => res.id !== selectedEvent.id));
-        setMessage('Reserva cancelada con éxito');
-        setOpenModal(false);
-        setSelectedEvent(null);
-        // Refrescar las reservas inmediatamente después de cancelar
-        fetchReservas();
-      })
-      .catch((err) => {
-        console.error('Error al cancelar reserva:', err);
-        const errorMessage = err.response?.data?.error || 'Error al cancelar la reserva';
-        setMessage(errorMessage);
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
       });
+      await axios.delete(`http://localhost:3000/api/reservas/${negocioId}/${selectedEvent.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setReservas((prev) => prev.filter((res) => res.id !== selectedEvent.id));
+      setMessage('Reserva cancelada con éxito');
+      setOpenModal(false);
+      setSelectedEvent(null);
+      fetchReservas();
+    } catch (err) {
+      console.error('Error al cancelar reserva:', (err as any));
+      const errorMessage = (err as any).response?.data?.error || 'Error al cancelar la reserva';
+      setMessage(errorMessage);
+    }
   };
 
   const handleCloseModal = () => {
@@ -259,11 +284,18 @@ const ReservationsPage: React.FC = () => {
   const saveSettings = async () => {
     if (!negocioId) return;
     try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
       await axios.put(`http://localhost:3000/api/reservas/${negocioId}`, {
         appointmentDuration,
         breakBetween,
         hora_inicio_default: horaInicioDefault,
         hora_fin_default: horaFinDefault,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       setMessage('Configuración guardada con éxito');
     } catch (error: any) {
@@ -273,225 +305,221 @@ const ReservationsPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh' }}>
-      <Header />
-      <Box display="flex">
-        <Sidebar selected="reservations" />
-        <Box flexGrow={1} sx={{ padding: 3 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="start" mb={4}>
-            <h2 className="text-2xl font-poppins font-bold text-white" style={{ marginTop: '0.5rem' }}>
-              Configuración de Reservas
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', maxWidth: '480px' }}>
-              <ModuleStatus moduleName="Reservas" active={moduloReservas} onToggle={handleToggleReservas} />
-            </div>
-          </Box>
-
-          <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
-            <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 4 }}>
-              Configuración de Citas
-            </Typography>
-            <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 4, p: 3 }}>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <AccessTimeIcon sx={{ color: '#2563EB' }} />
-                <Typography sx={{ fontFamily: 'Poppins', fontWeight: 'bold' }}>Duración y Espaciado</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                <TextField
-                  label="Duración de la cita (minutos)"
-                  type="number"
-                  value={appointmentDuration}
-                  onChange={(e) => setAppointmentDuration(Number(e.target.value) || 1)}
-                  sx={{ width: 200 }}
-                  inputProps={{ min: 1 }}
-                />
-                <TextField
-                  label="Espacio entre citas (minutos)"
-                  type="number"
-                  value={breakBetween}
-                  onChange={(e) => setBreakBetween(Number(e.target.value) || 0)}
-                  sx={{ width: 200 }}
-                  inputProps={{ min: 0 }}
-                />
-              </Box>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <AccessTimeIcon sx={{ color: '#2563EB' }} />
-                <Typography sx={{ fontFamily: 'Poppins', fontWeight: 'bold' }}>Horario Diario</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  label="Hora de inicio (HH:MM)"
-                  value={horaInicioDefault}
-                  onChange={(e) => setHoraInicioDefault(e.target.value)}
-                  sx={{ width: 200 }}
-                  inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
-                />
-                <TextField
-                  label="Hora de fin (HH:MM)"
-                  value={horaFinDefault}
-                  onChange={(e) => setHoraFinDefault(e.target.value)}
-                  sx={{ width: 200 }}
-                  inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
-                />
-              </Box>
-            </Box>
-
-            <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mt: 4, mb: 2 }}>
-              Reservas Programadas
-            </Typography>
-            <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 4, p: 3 }}>
-              <CalendarComponent events={reservas} onEventClick={handleEventClick} />
-              <Box sx={{ mt: 2 }}>
-                <Button
-                  onClick={handleAddReservation}
-                  sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
-                >
-                  Añadir Reserva
-                </Button>
-              </Box>
-            </Box>
-
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                onClick={saveSettings}
-                sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
-              >
-                Guardar Cambios
-              </Button>
-            </Box>
-
-            {message && (
-              <Typography sx={{ mt: 2, color: message.toLowerCase().includes('error') ? 'red' : 'green' }}>
-                {message}
-              </Typography>
-            )}
-          </Box>
-
-          <Modal open={openModal} onClose={handleCloseModal}>
-            <Box
-              sx={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: 400,
-                bgcolor: 'white',
-                borderRadius: 4,
-                boxShadow: 24,
-                p: 4,
-              }}
-            >
-              <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
-                Detalles de la Reserva
-              </Typography>
-              {selectedEvent && (
-                <>
-                  <Typography>Cliente: {selectedEvent.cliente || 'No especificado'}</Typography>
-                  <Typography>Teléfono: {selectedEvent.telefono || 'No especificado'}</Typography>
-                  <Typography>
-                    Horario:{' '}
-                    {selectedEvent.start.toLocaleString('es-AR', {
-                      timeZone: 'America/Argentina/Buenos_Aires',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                    })}{' '}
-                    -{' '}
-                    {selectedEvent.end.toLocaleString('es-AR', {
-                      timeZone: 'America/Argentina/Buenos_Aires',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                    })}
-                  </Typography>
-                  <Typography>Descripción: {selectedEvent.descripcion || 'Sin descripción'}</Typography>
-                  <Button
-                    onClick={handleCancelReservation}
-                    sx={{ mt: 2, backgroundColor: '#FF4444', color: 'white', '&:hover': { backgroundColor: '#CC0000' } }}
-                  >
-                    Cancelar Reserva
-                  </Button>
-                </>
-              )}
-              <Button onClick={handleCloseModal} sx={{ mt: 2 }}>
-                Cerrar
-              </Button>
-            </Box>
-          </Modal>
-
-          <Modal open={openAddModal} onClose={handleCloseAddModal}>
-            <Box
-              sx={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: 400,
-                bgcolor: 'white',
-                borderRadius: 4,
-                boxShadow: 24,
-                p: 4,
-              }}
-            >
-              <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
-                Añadir Nueva Reserva
-              </Typography>
-              <TextField
-                label="Fecha (YYYY-MM-DD)"
-                value={newReservation.fecha}
-                onChange={(e) => setNewReservation({ ...newReservation, fecha: e.target.value })}
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Hora de Inicio (HH:MM)"
-                value={newReservation.hora_inicio}
-                onChange={(e) => setNewReservation({ ...newReservation, hora_inicio: e.target.value })}
-                fullWidth
-                sx={{ mb: 2 }}
-                inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
-              />
-              <TextField
-                label="Hora de Fin (HH:MM)"
-                value={newReservation.hora_fin}
-                onChange={(e) => setNewReservation({ ...newReservation, hora_fin: e.target.value })}
-                fullWidth
-                sx={{ mb: 2 }}
-                inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
-              />
-              <TextField
-                label="Cliente"
-                value={newReservation.cliente}
-                onChange={(e) => setNewReservation({ ...newReservation, cliente: e.target.value })}
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Teléfono"
-                value={newReservation.telefono}
-                onChange={(e) => setNewReservation({ ...newReservation, telefono: e.target.value })}
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Descripción"
-                value={newReservation.descripcion}
-                onChange={(e) => setNewReservation({ ...newReservation, descripcion: e.target.value })}
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <Button
-                onClick={handleSaveReservation}
-                sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
-              >
-                Guardar Reserva
-              </Button>
-              <Button onClick={handleCloseAddModal} sx={{ mt: 2 }}>
-                Cancelar
-              </Button>
-            </Box>
-          </Modal>
+    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', flexGrow: 1 }}>
+      <Box flexGrow={1} sx={{ padding: 3 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="start" mb={4}>
+          <h2 className="text-2xl font-poppins font-bold text-white" style={{ marginTop: '0.5rem' }}>
+            Configuración de Reservas
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', maxWidth: '480px' }}>
+            <ModuleStatus moduleName="Reservas" active={moduloReservas} onToggle={handleToggleReservas} />
+          </div>
         </Box>
+
+        <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
+          <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 4 }}>
+            Configuración de Citas
+          </Typography>
+          <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 4, p: 3 }}>
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <AccessTimeIcon sx={{ color: '#2563EB' }} />
+              <Typography sx={{ fontFamily: 'Poppins', fontWeight: 'bold' }}>Duración y Espaciado</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <TextField
+                label="Duración de la cita (minutos)"
+                type="number"
+                value={appointmentDuration}
+                onChange={(e) => setAppointmentDuration(Number(e.target.value) || 1)}
+                sx={{ width: 200 }}
+                inputProps={{ min: 1 }}
+              />
+              <TextField
+                label="Espacio entre citas (minutos)"
+                type="number"
+                value={breakBetween}
+                onChange={(e) => setBreakBetween(Number(e.target.value) || 0)}
+                sx={{ width: 200 }}
+                inputProps={{ min: 0 }}
+              />
+            </Box>
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <AccessTimeIcon sx={{ color: '#2563EB' }} />
+              <Typography sx={{ fontFamily: 'Poppins', fontWeight: 'bold' }}>Horario Diario</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Hora de inicio (HH:MM)"
+                value={horaInicioDefault}
+                onChange={(e) => setHoraInicioDefault(e.target.value)}
+                sx={{ width: 200 }}
+                inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
+              />
+              <TextField
+                label="Hora de fin (HH:MM)"
+                value={horaFinDefault}
+                onChange={(e) => setHoraFinDefault(e.target.value)}
+                sx={{ width: 200 }}
+                inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
+              />
+            </Box>
+          </Box>
+
+          <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mt: 4, mb: 2 }}>
+            Reservas Programadas
+          </Typography>
+          <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 4, p: 3 }}>
+            <CalendarComponent events={reservas} onEventClick={handleEventClick} />
+            <Box sx={{ mt: 2 }}>
+              <Button
+                onClick={handleAddReservation}
+                sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
+              >
+                Añadir Reserva
+              </Button>
+            </Box>
+          </Box>
+
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              onClick={saveSettings}
+              sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
+            >
+              Guardar Cambios
+            </Button>
+          </Box>
+
+          {message && (
+            <Typography sx={{ mt: 2, color: message.toLowerCase().includes('error') ? 'red' : 'green' }}>
+              {message}
+            </Typography>
+          )}
+        </Box>
+
+        <Modal open={openModal} onClose={handleCloseModal}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 400,
+              bgcolor: 'white',
+              borderRadius: 4,
+              boxShadow: 24,
+              p: 4,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
+              Detalles de la Reserva
+            </Typography>
+            {selectedEvent && (
+              <>
+                <Typography>Cliente: {selectedEvent.cliente || 'No especificado'}</Typography>
+                <Typography>Teléfono: {selectedEvent.telefono || 'No especificado'}</Typography>
+                <Typography>
+                  Horario:{' '}
+                  {selectedEvent.start.toLocaleString('es-AR', {
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}{' '}
+                  -{' '}
+                  {selectedEvent.end.toLocaleString('es-AR', {
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                </Typography>
+                <Typography>Descripción: {selectedEvent.descripcion || 'Sin descripción'}</Typography>
+                <Button
+                  onClick={handleCancelReservation}
+                  sx={{ mt: 2, backgroundColor: '#FF4444', color: 'white', '&:hover': { backgroundColor: '#CC0000' } }}
+                >
+                  Cancelar Reserva
+                </Button>
+              </>
+            )}
+            <Button onClick={handleCloseModal} sx={{ mt: 2 }}>
+              Cerrar
+            </Button>
+          </Box>
+        </Modal>
+
+        <Modal open={openAddModal} onClose={handleCloseAddModal}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 400,
+              bgcolor: 'white',
+              borderRadius: 4,
+              boxShadow: 24,
+              p: 4,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
+              Añadir Nueva Reserva
+            </Typography>
+            <TextField
+              label="Fecha (YYYY-MM-DD)"
+              value={newReservation.fecha}
+              onChange={(e) => setNewReservation({ ...newReservation, fecha: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Hora de Inicio (HH:MM)"
+              value={newReservation.hora_inicio}
+              onChange={(e) => setNewReservation({ ...newReservation, hora_inicio: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+              inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
+            />
+            <TextField
+              label="Hora de Fin (HH:MM)"
+              value={newReservation.hora_fin}
+              onChange={(e) => setNewReservation({ ...newReservation, hora_fin: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+              inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
+            />
+            <TextField
+              label="Cliente"
+              value={newReservation.cliente}
+              onChange={(e) => setNewReservation({ ...newReservation, cliente: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Teléfono"
+              value={newReservation.telefono}
+              onChange={(e) => setNewReservation({ ...newReservation, telefono: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Descripción"
+              value={newReservation.descripcion}
+              onChange={(e) => setNewReservation({ ...newReservation, descripcion: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <Button
+              onClick={handleSaveReservation}
+              sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
+            >
+              Guardar Reserva
+            </Button>
+            <Button onClick={handleCloseAddModal} sx={{ mt: 2 }}>
+              Cancelar
+            </Button>
+          </Box>
+        </Modal>
       </Box>
     </Box>
   );

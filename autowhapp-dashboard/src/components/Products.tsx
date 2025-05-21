@@ -8,12 +8,14 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import { Product } from '../types';
+import { useAuth0 } from '@auth0/auth0-react';
 
 interface ProductsProps {
   negocioId: number;
 }
 
 const Products: React.FC<ProductsProps> = ({ negocioId }) => {
+  const { getAccessTokenSilently } = useAuth0();
   const [products, setProducts] = useState<Product[]>([]);
   const [newProduct, setNewProduct] = useState<Product>({ name: '', description: '', price: '', image: '' });
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -22,25 +24,34 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
   const [message, setMessage] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Cargar productos al montar el componente
-  useEffect(() => {
-    axios.get(`http://localhost:3000/api/productos/${negocioId}`)
-      .then(response => {
-        const fetchedProducts = (response.data as any[]).map((p: any) => ({
-          id: p.id,
-          name: p.nombre,
-          description: p.descripcion || '',
-          price: p.precio != null ? p.precio.toString() : '0', // Manejar null
-          image: p.foto || '',
-        }));
-        setProducts(fetchedProducts);
-      })
-      .catch(error => {
-        console.error('Error al cargar productos:', error);
-        setMessage('Error al cargar los productos');
-        setProducts([]);
+  // Muevo fetchProducts fuera de useEffect para poder reutilizarlo
+  const fetchProducts = async () => {
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
       });
-  }, [negocioId]);
+      const response = await axios.get<any[]>(`http://localhost:3000/api/productos/${negocioId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const fetchedProducts = response.data.map((p: any) => ({
+        id: p.id,
+        name: p.nombre,
+        description: p.descripcion || '',
+        price: p.precio != null ? p.precio.toString() : '0',
+        image: p.foto || '',
+      }));
+      setProducts(fetchedProducts);
+    } catch (error) {
+      setMessage('Error al cargar los productos');
+      setProducts([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, [negocioId, getAccessTokenSilently]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -68,40 +79,33 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
       setMessage('Por favor, completa los campos obligatorios');
       return;
     }
-
     const priceValue = parseFloat(newProduct.price);
     if (isNaN(priceValue) || priceValue <= 0) {
       setMessage('El precio debe ser un número válido mayor que 0');
       return;
     }
-
     try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
       const response = await axios.post('http://localhost:3000/api/productos', {
         negocio_id: negocioId,
         nombre: newProduct.name,
         descripcion: newProduct.description || '',
         precio: priceValue,
         foto: newProduct.image || null,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      const responseData = response.data as { success: boolean };
-      if (responseData.success) {
-        // Volver a cargar los productos desde el backend
-        const updatedResponse = await axios.get(`http://localhost:3000/api/productos/${negocioId}`);
-        const updatedProducts = (updatedResponse.data as any[]).map((p: any) => ({
-          id: p.id,
-          name: p.nombre,
-          description: p.descripcion || '',
-          price: p.precio != null ? p.precio.toString() : '0', // Manejar null
-          image: p.foto || '',
-        }));
-        setProducts(updatedProducts);
+      if ((response.data as any).success) {
+        await fetchProducts();
         setNewProduct({ name: '', description: '', price: '', image: '' });
         setFiles([]);
         setMessage('Producto agregado con éxito');
       }
     } catch (error: any) {
-      console.error('Error al agregar producto:', error);
       setMessage(`Error al agregar producto: ${error.response?.data?.error || error.message}`);
     }
   };
@@ -117,37 +121,31 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
       setMessage('Por favor, completa los campos obligatorios');
       return;
     }
-
     const priceValue = parseFloat(editProduct.price);
     if (isNaN(priceValue) || priceValue <= 0) {
       setMessage('El precio debe ser un número válido mayor que 0');
       return;
     }
-
     try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
       await axios.put(`http://localhost:3000/api/productos/${editId}`, {
         nombre: editProduct.name,
         descripcion: editProduct.description || '',
         precio: priceValue,
         foto: editProduct.image || null,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      // Volver a cargar los productos desde el backend
-      const updatedResponse = await axios.get(`http://localhost:3000/api/productos/${negocioId}`);
-      const updatedProducts = (updatedResponse.data as any[]).map((p: any) => ({
-        id: p.id,
-        name: p.nombre,
-        description: p.descripcion || '',
-        price: p.precio != null ? p.precio.toString() : '0', // Manejar null
-        image: p.foto || '',
-      }));
-      setProducts(updatedProducts);
+      await fetchProducts();
       setEditProduct(null);
       setEditId(null);
       setFiles([]);
       setMessage('Producto actualizado con éxito');
     } catch (error: any) {
-      console.error('Error al actualizar producto:', error);
       setMessage(`Error al actualizar producto: ${error.response?.data?.error || error.message}`);
     }
   };
@@ -160,21 +158,17 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
 
   const deleteProduct = async (id: number) => {
     try {
-      await axios.delete(`http://localhost:3000/api/productos/${id}`);
-
-      // Volver a cargar los productos desde el backend
-      const updatedResponse = await axios.get(`http://localhost:3000/api/productos/${negocioId}`);
-      const updatedProducts = (updatedResponse.data as any[]).map((p: any) => ({
-        id: p.id,
-        name: p.nombre,
-        description: p.descripcion || '',
-        price: p.precio != null ? p.precio.toString() : '0', // Manejar null
-        image: p.foto || '',
-      }));
-      setProducts(updatedProducts);
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      await axios.delete(`http://localhost:3000/api/productos/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchProducts();
       setMessage('Producto eliminado con éxito');
     } catch (error: any) {
-      console.error('Error al eliminar producto:', error);
       setMessage(`Error al eliminar producto: ${error.response?.data?.error || error.message}`);
     }
   };

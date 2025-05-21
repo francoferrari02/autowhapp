@@ -1,10 +1,12 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNegocio } from '../NegocioContext';
 import {
   ChatBubbleBottomCenterTextIcon,
   ShoppingCartIcon,
   ChartBarIcon,
   CalendarIcon,
-  BellIcon
+  BellIcon,
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -12,70 +14,58 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  {
-    id: 'config',
-    label: 'Chatbot',
-    icon: ChatBubbleBottomCenterTextIcon,
-    path: '/dashboard', // Cambiado de '/' a '/dashboard'
-  },
-  {
-    id: 'orders',
-    label: 'Pedidos',
-    icon: ShoppingCartIcon,
-    path: '/orders',
-  },
-  {
-    id: 'analytics',
-    label: 'Analíticas',
-    icon: ChartBarIcon,
-    path: '/analytics',
-  },
-  {
-    id: 'reservations',
-    label: 'Reservas',
-    icon: CalendarIcon,
-    path: '/reservations',
-  },
-  {
-    id: 'reminders',
-    label: 'Recordatorios',
-    icon: BellIcon,
-    path: '/reminders',
-  }
+  { id: 'config' as const, label: 'Chatbot', icon: ChatBubbleBottomCenterTextIcon, path: '/dashboard' },
+  { id: 'orders' as const, label: 'Pedidos', icon: ShoppingCartIcon, path: '/orders' },
+  { id: 'analytics' as const, label: 'Analíticas', icon: ChartBarIcon, path: '/analytics' },
+  { id: 'reservations' as const, label: 'Reservas', icon: CalendarIcon, path: '/reservations' },
+  { id: 'reminders' as const, label: 'Recordatorios', icon: BellIcon, path: '/reminders' },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
   const navigate = useNavigate();
+  const { negocios } = useNegocio();
+
+  // If no businesses exist, don't show the sidebar
+  if (negocios.length === 0) {
+    return null;
+  }
 
   return (
-    <aside className="w-52 bg-[#000000] min-h-screen p-4">
-      <nav className="flex flex-col gap-4">
+    <aside
+      className={`bg-[#000000] min-h-screen transition-all duration-300 ease-in-out ${
+        negocios.length > 0 ? 'w-52' : 'w-20'
+      }`}
+      style={{
+        paddingLeft: '0.5rem',
+        paddingRight: '0',
+        boxShadow: 'inset -10px 0 15px -5px rgba(0, 0, 0, 0.8), inset -3px 0 7px -3px rgba(0, 0, 0, 0.9)'
+      }}
+    >
+      <nav className="flex flex-col gap-4 pl-2 pr-0 py-2"> 
         {NAV_ITEMS.map(({ id, label, icon: Icon, path }) => {
           const isActive = selected === id;
           return (
             <button
               key={id}
               onClick={() => navigate(path)}
-              className={`relative flex items-center gap-3 px-4 py-5 font-poppins group
-                w-[calc(100%+16px)] -mr-4
+              className={`relative flex items-center gap-3 px-4 py-5 font-poppins group w-full
                 ${isActive
                   ? 'bg-blue-600 text-white font-semibold rounded-l-xl rounded-r-none'
                   : 'bg-[#273168] hover:bg-[#3b4484] text-blue-100 rounded-l-xl rounded-r-none'
-                }
-              `}
-              style={
-                !isActive
-                  ? { 
-                      boxShadow: `
-                        inset -11px 0 16px -6px rgba(10, 10, 16, 0.75), 
-                        -2px 2px 8px 0 rgba(0,0,0,0.10)
-                      `
-                    }
-                  : {}
-              }
+                }`}
+              style={{
+                boxShadow: isActive 
+                  ? 'none' 
+                  : 'inset -4px 0 8px -2px rgba(0, 0, 0, 0.6)',
+                transition: 'background-color 0.3s, box-shadow 0.3s'
+              }}
             >
-              <Icon className="h-6 w-6 text-inherit" style={{ transition: 'none', transform: 'none' }} />
-              <span className={`text-lg ${isActive ? 'text-white' : 'text-blue-100'}`}>
+              <Icon className="h-6 w-6 text-inherit" />
+              <span 
+                className={`text-lg ${isActive ? 'text-white' : 'text-blue-100'} transition-opacity duration-300 ${
+                  negocios.length > 0 ? 'opacity-100' : 'opacity-0 absolute'
+                }`}
+              >
                 {label}
               </span>
             </button>

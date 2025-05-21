@@ -1,9 +1,288 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const db = require('./db');
+const { Pool } = require('pg');
 const cron = require('node-cron');
 const { clients, initializeClients } = require('./whatsapp/client');
+const { expressjwt: jwt } = require('express-jwt');
+const jwks = require('jwks-rsa');
+const { auth } = require('express-oauth2-jwt-bearer');
+const axios = require('axios');
+const WebSocket = require('ws');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Configuración de la base de datos
+const dbConfig = {
+  user: 'autowhapp_user',
+  host: 'localhost',
+  database: 'autowhapp',
+  password: 'Autowhapp123',
+  port: 5432,
+};
+
+console.log('Database configuration:', {
+  ...dbConfig,
+  password: '****' // Ocultamos la contraseña en los logs
+});
+
+const db = new Pool(dbConfig);
+
+initializeClients();
+
+// Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  credentials: true
+}));
+app.use(express.json());
+
+// Configuración de Auth0
+const checkJwt = jwt({
+  secret: jwks.expressJwtSecret({
+    cache: true,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5,
+    jwksUri: `https://dev-15eg10mp60jkcv6l.us.auth0.com/.well-known/jwks.json`
+  }),
+  audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/',
+  issuer: `https://dev-15eg10mp60jkcv6l.us.auth0.com/`,
+  algorithms: ['RS256']
+}).unless({ path: ['/api/qrs', '/ws'] }); // Add /ws to the excluded paths
+
+// Middleware para logging de requests
+app.use((req, res, next) => {
+  console.log('Incoming request:', {
+    method: req.method,
+    path: req.path,
+    headers: {
+      ...req.headers,
+      authorization: req.headers.authorization ? 'Bearer [REDACTED]' : undefined
+    },
+    body: req.body
+  });
+  console.log('Authorization header:', req.headers.authorization);
+  console.log('Auth payload:', req.auth);
+  next();
+});
+
+// Función para verificar la conexión
+async function testConnection() {
+  let client;
+  try {
+    client = await db.connect();
+    console.log('✅ Database connection successful');
+    return true;
+  } catch (err) {
+    console.error('❌ Database connection error:', err);
+    console.error('Database config:', {
+      ...dbConfig,
+      password: '****'
+    });
+    return false;
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+}
+
+// Función para obtener información del usuario de Auth0
+async function getUserInfo(token) {
+  try {
+    const response = await axios.get('https://dev-15eg10mp60jkcv6l.us.auth0.com/userinfo', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user info from Auth0:', error);
+    throw error;
+  }
+}
+
+function asyncHandler(fn) {
+  return function(req, res, next) {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
+// Endpoint para obtener negocios del usuario
+app.get('/api/user/negocios', checkJwt, asyncHandler(async (req, res) => {
+  console.log('Route /api/user/negocios req.auth:', req.auth);
+  if (!req.auth) {
+    console.error('No auth payload found in request');
+    return res.status(401).json({ error: 'No authentication payload found' });
+  }
+
+  const auth0Id = req.auth.sub;
+  console.log('Auth payload:', req.auth);
+
+  // Obtener información del usuario de Auth0
+  const userInfo = await getUserInfo(req.headers.authorization.split(' ')[1]);
+  console.log('User info from Auth0:', userInfo);
+
+  if (!userInfo.email) {
+    console.error('No email found in user info');
+    return res.status(400).json({ error: 'User email is required' });
+  }
+
+  let client;
+  try {
+    client = await db.connect();
+
+    // Verificar si el usuario existe
+    const userResult = await client.query(
+      'SELECT id FROM users WHERE auth0_id = $1',
+      [auth0Id]
+    );
+
+    console.log('User query result:', userResult.rows);
+
+    if (userResult.rows.length === 0) {
+      console.log('User not found, creating new user');
+      // Crear nuevo usuario con la información de Auth0
+      const newUserResult = await client.query(
+        'INSERT INTO users (auth0_id, email, name) VALUES ($1, $2, $3) RETURNING id',
+        [auth0Id, userInfo.email, userInfo.name || 'Usuario']
+      );
+      console.log('New user created:', newUserResult.rows[0]);
+      return res.json([]); // Retornamos array vacío para nuevo usuario
+    }
+
+    const userId = userResult.rows[0].id;
+    console.log('Found user ID:', userId);
+
+    // Obtener negocios del usuario
+    const negociosResult = await client.query(
+      'SELECT * FROM negocios WHERE user_id = $1',
+      [userId]
+    );
+
+    console.log('Negocios encontrados:', negociosResult.rows);
+    res.json(negociosResult.rows);
+  } catch (err) {
+    console.error('Error fetching negocios:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      error: err.message,
+      details: err.stack,
+      authPayload: req.auth?.payload
+    });
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+}));
+
+// Inicializar la conexión al inicio
+testConnection().then(isConnected => {
+  if (!isConnected) {
+    console.error('Failed to connect to database. Exiting...');
+    process.exit(1);
+  }
+});
+
+// Add error handler for the pool
+db.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+// Configuración de WebSocket
+const wss = new WebSocket.Server({ noServer: true });
+
+// Manejar conexiones WebSocket
+wss.on('connection', (ws, req) => {
+  console.log('New WebSocket connection established');
+  
+  // Verificar el token aquí
+  const token = req.headers['sec-websocket-protocol'];
+  if (!token) {
+    console.log('No token provided in WebSocket connection');
+    ws.close(1008, 'Authentication required');
+    return;
+  }
+
+  // Verificar el token con Auth0
+  jwt({
+    secret: jwks.expressJwtSecret({
+      cache: true,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+      jwksUri: `https://dev-15eg10mp60jkcv6l.us.auth0.com/.well-known/jwks.json`
+    }),
+    audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/',
+    issuer: `https://dev-15eg10mp60jkcv6l.us.auth0.com/`,
+    algorithms: ['RS256']
+  })({ headers: { authorization: `Bearer ${token}` } }, {}, (err) => {
+    if (err) {
+      console.log('WebSocket authentication failed:', err);
+      ws.close(1008, 'Authentication failed');
+      return;
+    }
+    console.log('WebSocket authentication successful');
+  });
+
+  ws.on('message', (message) => {
+    console.log('Received:', message);
+  });
+
+  ws.on('close', () => {
+    console.log('Client disconnected');
+  });
+});
+
+// Configurar el servidor HTTP para manejar WebSocket
+const server = app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+// Manejar upgrade de HTTP a WebSocket
+server.on('upgrade', (request, socket, head) => {
+  const token = request.headers['sec-websocket-protocol'];
+  
+  if (!token) {
+    console.log('No token provided in upgrade request');
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
+});
+
+// Auth0 configuration
+const checkJwtExpress = jwt({
+  secret: jwks.expressJwtSecret({
+    cache: true,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5,
+    jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`
+  }),
+  audience: process.env.AUTH0_AUDIENCE,
+  issuer: `https://${process.env.AUTH0_DOMAIN}/`,
+  algorithms: ['RS256']
+});
+
+// Apply JWT check to all routes except public ones
+//app.use(checkJwtExpress.unless({ path: ['/api/public'] }));
+
+// Middleware para manejar errores de autenticación
+app.use((err, req, res, next) => {
+  if (err.name === 'UnauthorizedError') {
+    console.error('Auth error:', err);
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  next(err);
+});
 
 cron.schedule('*/30 * * * * *', () => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
@@ -11,19 +290,20 @@ cron.schedule('*/30 * * * * *', () => {
   const currentDayName = now.toLocaleDateString('es-AR', { weekday: 'long' });
   const currentDayNumber = String(now.getDate());
   const currentDateTime = now.toISOString().slice(0, 19).replace('T', ' ');
-  console.log('🕒 Ejecutando CRON | Hora local:', now.toLocaleTimeString(), '| Minutos:', currentMinutes);
+  //console.log('🕒 Ejecutando CRON | Hora local:', now.toLocaleTimeString(), '| Minutos:', currentMinutes);
 
   const toMinutes = (timeString) => {
     const [hh, mm] = timeString.split(':').map(Number);
     return hh * 60 + mm;
   };
 
-  db.all('SELECT * FROM recordatorios WHERE activo = 1', [], async (err, rows) => {
+  db.query('SELECT * FROM recordatorios WHERE activo = true', [], async (err, result) => {
     if (err) {
-      console.error('❌ Error al obtener recordatorios:', err.message);
+      //console.error('❌ Error al obtener recordatorios:', err.message);
       return;
     }
 
+    const rows = result.rows;
     console.log(`📂 Recordatorios activos encontrados: ${rows.length}`);
     if (rows.length === 0) return;
 
@@ -96,10 +376,10 @@ cron.schedule('*/30 * * * * *', () => {
 
         console.log('Obteniendo chat del grupo...');
         let grupo;
-        const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = $1', [negocio_id], (err, row) => resolve(row)));
-        if (negocio && negocio.grupo_id) {
+        const negocio = await new Promise((resolve) => db.query('SELECT grupo_id FROM negocios WHERE id = $1', [negocio_id], (err, row) => resolve(row)));
+        if (negocio && negocio.rows[0] && negocio.rows[0].grupo_id) {
           try {
-            grupo = await client.getChatById(negocio.grupo_id);
+            grupo = await client.getChatById(negocio.rows[0].grupo_id);
             console.log(`✅ Chat del grupo obtenido directamente: ${grupo.name}`);
           } catch (err) {
             console.error('❌ Error al obtener chat por ID:', err.message);
@@ -147,23 +427,19 @@ cron.schedule('*/30 * * * * *', () => {
           console.timeEnd(`🕐 Tiempo envío recordatorio ID ${id}`);
           console.log(`✉️ Recordatorio enviado con éxito para ID ${id}`);
 
-          db.run('UPDATE recordatorios SET last_sent = $1 WHERE id = $2', [currentDateTime, id], (err) => {
+          db.query('UPDATE recordatorios SET last_sent = $1 WHERE id = $2', [currentDateTime, id], (err) => {
             if (err) console.error('❌ Error al actualizar last_sent:', err.message);
             else console.log(`✅ last_sent actualizado para recordatorio ID ${id}`);
           });
         } catch (sendErr) {
           console.error(`🚨 Error al enviar mensaje para recordatorio ID ${id}:`, sendErr.message);
         }
-      } catch (e) {
-        console.error(`❌ Error general al procesar recordatorio ID ${id}:`, e.message);
+      } catch (err) {
+        console.error(`❌ Error procesando recordatorio ID ${recordatorio.id}:`, err.message);
       }
     }
   });
 });
-
-const app = express();
-app.use(express.json());
-app.use(cors());
 
 // Helper function to format minutes into HH:MM
 const formatTime = (totalMinutes) => {
@@ -173,48 +449,31 @@ const formatTime = (totalMinutes) => {
 };
 
 // Endpoint para obtener la configuración del negocio
-app.get('/api/negocio/:id', (req, res) => {
-  const negocioId = req.params.id;
-  console.log(`Solicitud GET /api/negocio/${negocioId}`);
-  db.get('SELECT * FROM negocios WHERE id = $1', [negocioId], (err, row) => {
-    if (err) {
-      console.error('Error al obtener negocio:', err.message);
-      return res.status(500).json({ error: err.message });
-    }
-    if (!row) {
-      console.log('Negocio no encontrado:', negocioId);
+app.get('/api/negocio/:id', checkJwt, async (req, res) => {
+  const { id } = req.params;
+  const auth0Id = req.auth.sub;
+
+  try {
+    const result = await db.query(
+      `SELECT n.* FROM negocios n
+       JOIN users u ON n.user_id = u.id
+       WHERE n.id = $1 AND u.auth0_id = $2`,
+      [id, auth0Id]
+    );
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Negocio no encontrado' });
     }
-    // Obtener reservas
-    db.all('SELECT * FROM reservas WHERE negocio_id = $1', [negocioId], (err, reservas) => {
-      if (err) {
-        console.error('Error al obtener reservas:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-      // Obtener recordatorios
-      db.all('SELECT * FROM recordatorios WHERE negocio_id = $1', [negocioId], (err, recordatorios) => {
-        if (err) {
-          console.error('Error al obtener recordatorios:', err.message);
-          return res.status(500).json({ error: err.message });
-        }
-        res.json({
-          ...row,
-          reservas: reservas || [],
-          recordatorios: recordatorios || [],
-          modulo_reservas: row.modulo_reservas === 1,
-          modulo_recordatorios: row.modulo_recordatorios === 1,
-          appointmentDuration: row.appointment_duration,
-          breakBetween: row.break_between,
-          hora_inicio_default: row.hora_inicio_default,
-          hora_fin_default: row.hora_fin_default,
-        });
-      });
-    });
-  });
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error al obtener negocio:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Endpoint para registrar reservas
-app.post('/api/reservas/:negocioId', (req, res) => {
+app.post('/api/reservas/:negocioId', checkJwt, (req, res) => {
   const { negocioId } = req.params;
   const { fecha, hora_inicio, hora_fin, ocupado = 1, cliente, telefono, descripcion } = req.body;
   console.log('Datos recibidos en POST /api/reservas:', { negocioId, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion });
@@ -224,17 +483,17 @@ app.post('/api/reservas/:negocioId', (req, res) => {
     return res.status(400).json({ error: 'fecha, hora_inicio y hora_fin son requeridos' });
   }
 
-  db.get('SELECT modulo_reservas, appointment_duration, break_between, hora_inicio_default, hora_fin_default FROM negocios WHERE id = $1', [negocioId], (err, row) => {
+  db.query('SELECT modulo_reservas, appointment_duration, break_between, hora_inicio_default, hora_fin_default FROM negocios WHERE id = $1', [negocioId], (err, row) => {
     if (err) {
       console.error('Error al verificar negocio:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    if (!row || row.modulo_reservas !== 1) {
+    if (!row || row.rows[0] && row.rows[0].modulo_reservas !== 1) {
       console.log('Módulo de reservas no activo para negocio:', negocioId);
       return res.status(403).json({ error: 'Módulo de reservas no activo' });
     }
 
-    const { appointment_duration, break_between, hora_inicio_default, hora_fin_default } = row;
+    const { appointment_duration, break_between, hora_inicio_default, hora_fin_default } = row.rows[0];
 
     // Convertir horas a minutos para calcular duración
     const toMinutes = (time) => {
@@ -270,7 +529,7 @@ app.post('/api/reservas/:negocioId', (req, res) => {
       return res.status(400).json({ error: 'El horario no coincide con un slot válido' });
     }
 
-    db.all(
+    db.query(
       'SELECT * FROM reservas WHERE negocio_id = $1 AND fecha = $2 AND ((hora_inicio <= $3 AND hora_fin >= $4) OR (hora_inicio <= $5 AND hora_fin >= $6))',
       [negocioId, fecha, hora_fin, hora_inicio, hora_fin, hora_inicio],
       (err, reservas) => {
@@ -278,12 +537,12 @@ app.post('/api/reservas/:negocioId', (req, res) => {
           console.error('Error al verificar superposición:', err.message);
           return res.status(500).json({ error: err.message });
         }
-        if (reservas.length > 0) {
+        if (reservas.rows.length > 0) {
           console.log('Conflicto de horario con otra reserva');
           return res.status(409).json({ error: 'Conflicto de horario con otra reserva' });
         }
 
-        db.run(
+        db.query(
           'INSERT INTO reservas (negocio_id, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
           [negocioId, fecha, hora_inicio, hora_fin, ocupado ? 1 : 0, cliente || '', telefono || '', descripcion || ''],
           function (err) {
@@ -300,7 +559,7 @@ app.post('/api/reservas/:negocioId', (req, res) => {
   });
 });
 
-app.get('/api/cantReservas/:negocioId', (req, res) => {
+app.get('/api/cantReservas/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
 
@@ -310,34 +569,34 @@ app.get('/api/cantReservas/:negocioId', (req, res) => {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-    db.get(
+    db.query(
         'SELECT count(*) as count FROM reservas WHERE negocio_id = $1',
         [negocioId],
         (err, row) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
-            res.json({ count: row.count });
+            res.json({ count: row.rows[0].count });
         }
     );
 });
 
 // Endpoint para cancelar reservas
-app.delete('/api/reservas/:negocioId/:reservaId', (req, res) => {
+app.delete('/api/reservas/:negocioId/:reservaId', checkJwt, (req, res) => {
   const { negocioId, reservaId } = req.params;
   console.log(`Solicitud DELETE /api/reservas/${negocioId}/${reservaId}`);
 
-  db.get('SELECT * FROM reservas WHERE id = $1 AND negocio_id = $2', [reservaId, negocioId], (err, reserva) => {
+  db.query('SELECT * FROM reservas WHERE id = $1 AND negocio_id = $2', [reservaId, negocioId], (err, reserva) => {
     if (err) {
       console.error('Error al verificar reserva:', err.message);
       return res.status(500).json({ error: 'Error al verificar la reserva: ' + err.message });
     }
-    if (!reserva) {
+    if (!reserva.rows[0]) {
       console.log(`Reserva ${reservaId} no encontrada para negocio ${negocioId}`);
       return res.status(404).json({ error: 'Reserva no encontrada o no pertenece a este negocio' });
     }
 
-    db.run('DELETE FROM reservas WHERE id = $1 AND negocio_id = $2', [reservaId, negocioId], function (err) {
+    db.query('DELETE FROM reservas WHERE id = $1 AND negocio_id = $2', [reservaId, negocioId], function (err) {
       if (err) {
         console.error('Error al cancelar reserva:', err.message);
         return res.status(500).json({ error: 'Error al cancelar la reserva: ' + err.message });
@@ -353,7 +612,7 @@ app.delete('/api/reservas/:negocioId/:reservaId', (req, res) => {
 });
 
 // Endpoint para actualizar configuración de reservas
-app.put('/api/reservas/:negocioId', (req, res) => {
+app.put('/api/reservas/:negocioId', checkJwt, (req, res) => {
   const { negocioId } = req.params;
   const { appointmentDuration, breakBetween, hora_inicio_default, hora_fin_default } = req.body;
   console.log('Datos recibidos en PUT /api/reservas:', { negocioId, appointmentDuration, breakBetween, hora_inicio_default, hora_fin_default });
@@ -368,7 +627,7 @@ app.put('/api/reservas/:negocioId', (req, res) => {
     return res.status(400).json({ error: 'appointmentDuration debe ser mayor que 0 y breakBetween no puede ser negativo' });
   }
 
-  db.run(
+  db.query(
     'UPDATE negocios SET appointment_duration = $1, break_between = $2, hora_inicio_default = $3, hora_fin_default = $4 WHERE id = $5',
     [appointmentDuration, breakBetween, hora_inicio_default, hora_fin_default, negocioId],
     (err) => {
@@ -383,21 +642,21 @@ app.put('/api/reservas/:negocioId', (req, res) => {
 });
 
 // Endpoint para eliminar pedidos
-app.delete('/api/pedidos/:negocioId/:pedidoId', (req, res) => {
+app.delete('/api/pedidos/:negocioId/:pedidoId', checkJwt, (req, res) => {
   const { negocioId, pedidoId } = req.params;
   console.log(`Solicitud DELETE /api/pedidos/${negocioId}/${pedidoId}`);
 
-  db.get('SELECT * FROM pedidos WHERE id = $1 AND negocio_id = $2', [pedidoId, negocioId], (err, pedido) => {
+  db.query('SELECT * FROM pedidos WHERE id = $1 AND negocio_id = $2', [pedidoId, negocioId], (err, pedido) => {
     if (err) {
       console.error('Error al verificar pedido:', err.message);
       return res.status(500).json({ error: 'Error al verificar el pedido: ' + err.message });
     }
-    if (!pedido) {
+    if (!pedido.rows[0]) {
       console.log(`Pedido ${pedidoId} no encontrado para negocio ${negocioId}`);
       return res.status(404).json({ error: 'Pedido no encontrado o no pertenece a este negocio' });
     }
 
-    db.run('DELETE FROM pedidos WHERE id = $1 AND negocio_id = $2', [pedidoId, negocioId], function (err) {
+    db.query('DELETE FROM pedidos WHERE id = $1 AND negocio_id = $2', [pedidoId, negocioId], function (err) {
       if (err) {
         console.error('Error al eliminar pedido:', err.message);
         return res.status(500).json({ error: 'Error al eliminar el pedido: ' + err.message });
@@ -413,39 +672,39 @@ app.delete('/api/pedidos/:negocioId/:pedidoId', (req, res) => {
 });
 
 // Endpoint para actualizar el estado de un pedido
-app.put('/api/pedido/:id/estado', (req, res) => {
+app.put('/api/pedido/:id/estado', checkJwt, (req, res) => {
   const { estado } = req.body;
   console.log(`Solicitud PUT /api/pedido/${req.params.id}/estado:`, { estado });
 
-  db.run('UPDATE pedidos SET estado = $1 WHERE id = $2', [estado, req.params.id], async (err) => {
+  db.query('UPDATE pedidos SET estado = $1 WHERE id = $2', [estado, req.params.id], async (err) => {
     if (err) {
       console.error('Error al actualizar estado del pedido:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    const pedido = await new Promise((resolve) => db.get('SELECT * FROM pedidos WHERE id = $1', [req.params.id], (e, r) => resolve(r)));
-    const mensaje = await new Promise((resolve) => db.get('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = $1 AND tipo = $2', [pedido.negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.mensaje)));
+    const pedido = await new Promise((resolve) => db.query('SELECT * FROM pedidos WHERE id = $1', [req.params.id], (e, r) => resolve(r)));
+    const mensaje = await new Promise((resolve) => db.query('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = $1 AND tipo = $2', [pedido.rows[0].negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.rows[0]?.mensaje)));
     console.log(`Mensaje recuperado para estado ${estado}: ${mensaje}`);
-    if (mensaje && clients[pedido.negocio_id]?.client) {
-      console.log(`Buscando grupo "Prueba Autowhapp" para negocio ${pedido.negocio_id}`);
+    if (mensaje && clients[pedido.rows[0].negocio_id]?.client) {
+      console.log(`Buscando grupo "Prueba Autowhapp" para negocio ${pedido.rows[0].negocio_id}`);
       let grupo;
-      const negocio = await new Promise((resolve) => db.get('SELECT grupo_id FROM negocios WHERE id = $1', [pedido.negocio_id], (err, row) => resolve(row)));
-      if (negocio && negocio.grupo_id) {
+      const negocio = await new Promise((resolve) => db.query('SELECT grupo_id FROM negocios WHERE id = $1', [pedido.rows[0].negocio_id], (err, row) => resolve(row)));
+      if (negocio && negocio.rows[0] && negocio.rows[0].grupo_id) {
         try {
-          grupo = await clients[pedido.negocio_id].client.getChatById(negocio.grupo_id);
+          grupo = await clients[pedido.rows[0].negocio_id].client.getChatById(negocio.rows[0].grupo_id);
           console.log(`✅ Chat del grupo obtenido: ${grupo.name}`);
         } catch (err) {
           console.error('❌ Error al obtener chat por ID:', err.message);
         }
       }
       if (!grupo) {
-        const chats = await clients[pedido.negocio_id].client.getChats();
+        const chats = await clients[pedido.rows[0].negocio_id].client.getChats();
         grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
       }
       if (grupo) {
         console.log(`Enviando mensaje al grupo ${grupo.id._serialized}: ${mensaje}`);
-        await clients[pedido.negocio_id].client.sendMessage(grupo.id._serialized, mensaje);
+        await clients[pedido.rows[0].negocio_id].client.sendMessage(grupo.id._serialized, mensaje);
       } else {
-        console.error(`❌ No se encontró el grupo "Prueba Autowhapp" para negocio ${pedido.negocio_id}`);
+        console.error(`❌ No se encontró el grupo "Prueba Autowhapp" para negocio ${pedido.rows[0].negocio_id}`);
       }
     }
     console.log(`Estado del pedido ${req.params.id} actualizado a: ${estado}`);
@@ -454,29 +713,31 @@ app.put('/api/pedido/:id/estado', (req, res) => {
 });
 
 // Otros endpoints
+// index.js
 app.get('/api/qrs', (req, res) => {
-  db.all('SELECT id, nombre FROM negocios', [], (err, negocios) => {
+  db.query('SELECT id, nombre FROM negocios', [], (err, negocios) => {
     if (err) {
       console.error('Error al obtener negocios:', err.message);
       return res.status(500).json({ error: err.message });
     }
-   
-    const qrs = negocios.map(negocio => {
+
+    const qrs = negocios.rows.map(negocio => {
       const negocioId = negocio.id;
-      console.log(`Negocio ${negocioId} , Authenticated: ${clients[negocioId]?.authenticated}`);
       return {
         negocioId,
         qr: clients[negocioId]?.qr || null,
         authenticated: clients[negocioId]?.authenticated || false,
         nombre: negocio.nombre
       };
-    }).filter(client => !client.authenticated && client.qr);
+    }).filter(client => !client.authenticated && client.qr); // Solo devolver QR si no está autenticado y tiene QR
+    console.log('QRs generados:', qrs);
     res.json(qrs);
   });
 });
-
-app.post('/api/actualizar-estado-bot', (req, res) => {
+app.post('/api/actualizar-estado-bot', checkJwt, async (req, res) => {
   const { negocioId, estadoBot } = req.body;
+  const auth0Id = req.auth.sub;
+
   console.log('Datos recibidos en POST /api/actualizar-estado-bot:', { negocioId, estadoBot });
 
   if (!negocioId || estadoBot === undefined) {
@@ -484,17 +745,38 @@ app.post('/api/actualizar-estado-bot', (req, res) => {
     return res.status(400).json({ error: 'negocioId y estadoBot son requeridos' });
   }
 
-  db.run('UPDATE negocios SET estado_bot = $1 WHERE id = $2', [estadoBot ? 1 : 0, negocioId], (err) => {
-    if (err) {
-      console.error('Error al actualizar estado del bot:', err.message);
-      return res.status(500).json({ error: err.message });
+  let client;
+  try {
+    client = await db.connect();
+
+    // Verificar que el negocio pertenezca al usuario autenticado
+    const userResult = await client.query(
+      'SELECT n.id FROM negocios n JOIN users u ON n.user_id = u.id WHERE n.id = $1 AND u.auth0_id = $2',
+      [negocioId, auth0Id]
+    );
+
+    if (userResult.rows.length === 0) {
+      console.log('Negocio no encontrado o no pertenece al usuario');
+      return res.status(404).json({ error: 'Negocio no encontrado o no autorizado' });
     }
+
+    // Actualizar el estado del bot
+    await client.query(
+      'UPDATE negocios SET estado_bot = $1 WHERE id = $2',
+      [estadoBot ? 1 : 0, negocioId]
+    );
+
     console.log(`Estado del bot actualizado para negocio ${negocioId}:`, estadoBot);
     res.json({ success: true });
-  });
+  } catch (err) {
+    console.error('Error al actualizar estado del bot:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (client) client.release();
+  }
 });
 
-app.post('/api/actualizar-modulo-pedidos', (req, res) => {
+app.post('/api/actualizar-modulo-pedidos', checkJwt, (req, res) => {
   const { negocioId, moduloPedidos } = req.body;
   console.log('Datos recibidos en POST /api/actualizar-modulo-pedidos:', { negocioId, moduloPedidos });
 
@@ -503,7 +785,7 @@ app.post('/api/actualizar-modulo-pedidos', (req, res) => {
     return res.status(400).json({ error: 'negocioId y moduloPedidos son requeridos' });
   }
 
-  db.run('UPDATE negocios SET modulo_pedidos = $1 WHERE id = $2', [moduloPedidos ? 1 : 0, negocioId], (err) => {
+  db.query('UPDATE negocios SET modulo_pedidos = $1 WHERE id = $2', [moduloPedidos ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar modulo de pedidos:', err.message);
       return res.status(500).json({ error: err.message });
@@ -513,7 +795,7 @@ app.post('/api/actualizar-modulo-pedidos', (req, res) => {
   });
 });
 
-app.post('/api/actualizar-modulo-reservas', (req, res) => {
+app.post('/api/actualizar-modulo-reservas', checkJwt, (req, res) => {
   const { negocioId, moduloReservas } = req.body;
   console.log('Datos recibidos en POST /api/actualizar-modulo-reservas:', { negocioId, moduloReservas });
 
@@ -522,7 +804,7 @@ app.post('/api/actualizar-modulo-reservas', (req, res) => {
     return res.status(400).json({ error: 'negocioId y moduloReservas son requeridos' });
   }
 
-  db.run('UPDATE negocios SET modulo_reservas = $1 WHERE id = $2', [moduloReservas ? 1 : 0, negocioId], (err) => {
+  db.query('UPDATE negocios SET modulo_reservas = $1 WHERE id = $2', [moduloReservas ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar modulo de reservas:', err.message);
       return res.status(500).json({ error: err.message });
@@ -532,7 +814,7 @@ app.post('/api/actualizar-modulo-reservas', (req, res) => {
   });
 });
 
-app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
+app.post('/api/actualizar-modulo-recordatorios', checkJwt, (req, res) => {
   const { negocioId, moduloRecordatorios } = req.body;
   console.log('Datos recibidos en POST /api/actualizar-modulo-recordatorios:', { negocioId, moduloRecordatorios });
 
@@ -541,7 +823,7 @@ app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
     return res.status(400).json({ error: 'negocioId y moduloRecordatorios son requeridos' });
   }
 
-  db.run('UPDATE negocios SET modulo_recordatorios = $1 WHERE id = $2', [moduloRecordatorios ? 1 : 0, negocioId], (err) => {
+  db.query('UPDATE negocios SET modulo_recordatorios = $1 WHERE id = $2', [moduloRecordatorios ? 1 : 0, negocioId], (err) => {
     if (err) {
       console.error('Error al actualizar módulo de recordatorios:', err.message);
       return res.status(500).json({ error: err.message });
@@ -551,93 +833,62 @@ app.post('/api/actualizar-modulo-recordatorios', (req, res) => {
   });
 });
 
-app.post('/api/negocios', async (req, res) => {
-  const {
-    nombre,
-    numero_telefono,
-    tipo_negocio,
-    localidad,
-    direccion,
-    horarios,
-    contexto = '',
-    estado_bot = 1,
-    modulo_pedidos = 0,
-    modulo_reservas = 0,
-    modulo_recordatorios = 0,
-    appointment_duration = 60,
-    break_between = 15,
-    hora_inicio_default = '09:00',
-    hora_fin_default = '18:00'
-  } = req.body;
-
-  console.log('Datos recibidos en POST /api/negocios:', req.body);
-
-  if (!nombre || !numero_telefono) {
-    console.log('Faltan campos obligatorios: nombre o numero_telefono');
-    return res.status(400).json({ error: 'Nombre y número de teléfono son requeridos' });
-  }
-
-  let normalizedNumeroTelefono = numero_telefono.replace(/[^0-9+]/g, '');
-  if (normalizedNumeroTelefono.startsWith('54') && !normalizedNumeroTelefono.startsWith('549')) {
-    normalizedNumeroTelefono = '549' + normalizedNumeroTelefono.slice(2);
-  }
-  if (!normalizedNumeroTelefono.startsWith('+')) {
-    normalizedNumeroTelefono = '+' + normalizedNumeroTelefono;
-  }
-
-  const horariosString = JSON.stringify(horarios || {
-    Lunes: { open: '09:00', close: '18:00' },
-    Martes: { open: '09:00', close: '18:00' },
-    Miércoles: { open: '09:00', close: '18:00' },
-    Jueves: { open: '09:00', close: '18:00' },
-    Viernes: { open: '09:00', close: '18:00' },
-    Sábado: { open: '09:00', close: '18:00' },
-    Domingo: { open: '09:00', close: '18:00' },
-  });
-
+app.post('/api/negocios', checkJwt, async (req, res) => {
+  let client;
   try {
-    const result = await db.query(
-      `INSERT INTO negocios (
-        nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto,
-        estado_bot, modulo_pedidos, modulo_reservas, modulo_recordatorios,
-        appointment_duration, break_between, hora_inicio_default, hora_fin_default
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      RETURNING id`,
-      [
-        nombre,
-        normalizedNumeroTelefono,
-        tipo_negocio || 'personalizado',
-        localidad || '',
-        direccion || '',
-        horariosString,
-        contexto || '',
-        estado_bot ? 1 : 0,
-        modulo_pedidos ? 1 : 0,
-        modulo_reservas ? 1 : 0,
-        modulo_recordatorios ? 1 : 0,
-        appointment_duration,
-        break_between,
-        hora_inicio_default,
-        hora_fin_default
-      ]
-    );
-    const negocioId = result.rows[0].id;
-    console.log('Negocio insertado con éxito, ID:', negocioId);
-    res.json({ success: true, negocioId });
-  } catch (err) {
-    console.error('Error al insertar negocio:', err.message);
-    if (err.message.includes('unique constraint') || err.message.includes('numero_telefono')) {
-      return res.status(400).json({ error: 'El número de teléfono ya está registrado' });
+    const { nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto } = req.body;
+    
+    if (!nombre || !numero_telefono || !tipo_negocio || !localidad || !direccion) {
+      return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
-    res.status(500).json({ error: err.message });
+
+    const auth0Id = req.auth.sub;
+    client = await db.connect();
+    
+    // Buscar el ID del usuario basado en auth0_id
+    const userResult = await client.query(
+      'SELECT id FROM users WHERE auth0_id = $1',
+      [auth0Id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    
+    const userId = userResult.rows[0].id;
+
+    // Insertar el negocio
+    const result = await client.query(
+      `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, userId]
+    );
+
+    await initializeClients();
+
+    res.status(201).json({ 
+      message: 'Negocio creado exitosamente',
+      id: result.rows[0].id 
+    });
+  } catch (error) {
+    console.error('Error al crear el negocio:', error);
+    res.status(500).json({ 
+      error: 'Error al crear el negocio',
+      details: error.message 
+    });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 });
 
-app.put('/api/negocio/:id', (req, res) => {
+app.put('/api/negocio/:id', checkJwt, (req, res) => {
   const { nombre, tipo_negocio, localidad, direccion, horarios, contexto, modulo_pedidos, estado_bot, modulo_reservas } = req.body;
   console.log(`Solicitud PUT /api/negocio/${req.params.id}:`, req.body);
 
-  db.run(
+  db.query(
     `UPDATE negocios SET nombre = $1, tipo_negocio = $2, localidad = $3, direccion = $4, horarios = $5, contexto = $6, modulo_pedidos = $7, estado_bot = $8, modulo_reservas = $9 WHERE id = $10`,
     [nombre, tipo_negocio, localidad, direccion, JSON.stringify(horarios), contexto, modulo_pedidos ? 1 : 0, estado_bot ? 1 : 0, modulo_reservas ? 1 : 0, req.params.id],
     (err) => {
@@ -651,19 +902,19 @@ app.put('/api/negocio/:id', (req, res) => {
   );
 });
 
-app.get('/api/faqs/:negocioId', (req, res) => {
+app.get('/api/faqs/:negocioId', checkJwt, (req, res) => {
   const negocioId = req.params.negocioId;
   console.log(`Solicitud GET /api/faqs/${negocioId}`);
-  db.all('SELECT * FROM faqs WHERE negocio_id = $1', [negocioId], (err, rows) => {
+  db.query('SELECT * FROM faqs WHERE negocio_id = $1', [negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener FAQs:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    res.json(rows);
+    res.json(rows.rows);
   });
 });
 
-app.post('/api/faqs', (req, res) => {
+app.post('/api/faqs', checkJwt, (req, res) => {
   const { negocioId, pregunta, respuesta } = req.body;
   console.log('Datos recibidos en POST /api/faqs:', { negocioId, pregunta, respuesta });
 
@@ -672,7 +923,7 @@ app.post('/api/faqs', (req, res) => {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
 
-  db.run('INSERT INTO faqs (negocio_id, pregunta, respuesta) VALUES ($1, $2, $3)',
+  db.query('INSERT INTO faqs (negocio_id, pregunta, respuesta) VALUES ($1, $2, $3)',
     [negocioId, pregunta, respuesta],
     function(err) {
       if (err) {
@@ -685,11 +936,11 @@ app.post('/api/faqs', (req, res) => {
   );
 });
 
-app.put('/api/faqs/:id', (req, res) => {
+app.put('/api/faqs/:id', checkJwt, (req, res) => {
   const { pregunta, respuesta } = req.body;
   console.log(`Solicitud PUT /api/faqs/${req.params.id}:`, { pregunta, respuesta });
 
-  db.run('UPDATE faqs SET pregunta = $1, respuesta = $2 WHERE id = $3',
+  db.query('UPDATE faqs SET pregunta = $1, respuesta = $2 WHERE id = $3',
     [pregunta, respuesta, req.params.id],
     function(err) {
       if (err) {
@@ -702,9 +953,9 @@ app.put('/api/faqs/:id', (req, res) => {
   );
 });
 
-app.delete('/api/faqs/:id', (req, res) => {
+app.delete('/api/faqs/:id', checkJwt, (req, res) => {
   console.log(`Solicitud DELETE /api/faqs/${req.params.id}`);
-  db.run('DELETE FROM faqs WHERE id = $1', [req.params.id], function(err) {
+  db.query('DELETE FROM faqs WHERE id = $1', [req.params.id], function(err) {
     if (err) {
       console.error('Error al eliminar FAQ:', err.message);
       return res.status(500).json({ error: err.message });
@@ -716,16 +967,16 @@ app.delete('/api/faqs/:id', (req, res) => {
 
 app.get('/api/negocios', (req, res) => {
   console.log('Solicitud GET /api/negocios');
-  db.all('SELECT * FROM negocios', [], (err, rows) => {
+  db.query('SELECT * FROM negocios', [], (err, rows) => {
     if (err) {
       console.error('Error al listar negocios:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    res.json(rows);
+    res.json(rows.rows);
   });
 });
 
-app.post('/api/productos', (req, res) => {
+app.post('/api/productos', checkJwt, (req, res) => {
   const { negocio_id, nombre, descripcion, precio, foto } = req.body;
   console.log('Datos recibidos en POST /api/productos:', { negocio_id, nombre, descripcion, precio, foto });
 
@@ -739,7 +990,7 @@ app.post('/api/productos', (req, res) => {
     return res.status(400).json({ error: 'El precio debe ser un número válido mayor que 0' });
   }
 
-  db.run('INSERT INTO productos (negocio_id, nombre, descripcion, precio, foto) VALUES ($1, $2, $3, $4, $5)',
+  db.query('INSERT INTO productos (negocio_id, nombre, descripcion, precio, foto) VALUES ($1, $2, $3, $4, $5)',
     [negocio_id, nombre, descripcion, precio, foto], (err) => {
       if (err) {
         console.error('Error al crear producto:', err.message);
@@ -750,18 +1001,18 @@ app.post('/api/productos', (req, res) => {
     });
 });
 
-app.get('/api/productos/:negocioId', (req, res) => {
+app.get('/api/productos/:negocioId', checkJwt, (req, res) => {
   console.log(`Solicitud GET /api/productos/${req.params.negocioId}`);
-  db.all('SELECT * FROM productos WHERE negocio_id = $1', [req.params.negocioId], (err, rows) => {
+  db.query('SELECT * FROM productos WHERE negocio_id = $1', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener productos:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    res.json(rows);
+    res.json(rows.rows);
   });
 });
 
-app.put('/api/productos/:id', (req, res) => {
+app.put('/api/productos/:id', checkJwt, (req, res) => {
   const { nombre, descripcion, precio, foto } = req.body;
   console.log(`Solicitud PUT /api/productos/${req.params.id}:`, { nombre, descripcion, precio, foto });
 
@@ -775,7 +1026,7 @@ app.put('/api/productos/:id', (req, res) => {
     return res.status(400).json({ error: 'El precio debe ser un número válido mayor que 0' });
   }
 
-  db.run('UPDATE productos SET nombre = $1, descripcion = $2, precio = $3, foto = $4 WHERE id = $5',
+  db.query('UPDATE productos SET nombre = $1, descripcion = $2, precio = $3, foto = $4 WHERE id = $5',
     [nombre, descripcion, precio, foto, req.params.id], (err) => {
       if (err) {
         console.error('Error al actualizar producto:', err.message);
@@ -786,9 +1037,9 @@ app.put('/api/productos/:id', (req, res) => {
     });
 });
 
-app.delete('/api/productos/:id', (req, res) => {
+app.delete('/api/productos/:id', checkJwt, (req, res) => {
   console.log(`Solicitud DELETE /api/productos/${req.params.id}`);
-  db.run('DELETE FROM productos WHERE id = $1', [req.params.id], (err) => {
+  db.query('DELETE FROM productos WHERE id = $1', [req.params.id], (err) => {
     if (err) {
       console.error('Error al eliminar producto:', err.message);
       return res.status(500).json({ error: err.message });
@@ -798,26 +1049,39 @@ app.delete('/api/productos/:id', (req, res) => {
   });
 });
 
-app.post('/api/mensajes-pedidos', (req, res) => {
+app.post('/api/mensajes-pedidos', checkJwt, (req, res) => {
   const { negocio_id, mensajes } = req.body;
   console.log('Datos recibidos en POST /api/mensajes-pedidos:', { negocio_id, mensajes });
 
   const tipos = ['recibido', 'preparando', 'enviado'];
-  db.serialize(() => {
+  db.query('BEGIN', (err) => {
+    if (err) {
+      console.error('Error al iniciar transacción:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
     tipos.forEach(tipo => {
-      db.run('INSERT OR REPLACE INTO mensajes_pedidos (negocio_id, tipo, mensaje) VALUES ($1, $2, $3)',
+      db.query('INSERT OR REPLACE INTO mensajes_pedidos (negocio_id, tipo, mensaje) VALUES ($1, $2, $3)',
         [negocio_id, tipo, mensajes[tipo]], (err) => {
-          if (err) console.error('Error al insertar mensaje de pedido:', err.message);
-          else console.log(`Mensaje para ${tipo} actualizado: ${mensajes[tipo]}`);
+          if (err) {
+            console.error(`Error al insertar mensaje de pedido para ${tipo}:`, err.message);
+          } else {
+            console.log(`Mensaje para ${tipo} actualizado: ${mensajes[tipo]}`);
+          }
         });
     });
-    console.log('Mensajes de pedidos actualizados con éxito');
-    res.json({ success: true });
+    db.query('COMMIT', (err) => {
+      if (err) {
+        console.error('Error al confirmar transacción:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log('Mensajes de pedidos actualizados con éxito');
+      res.json({ success: true });
+    });
   });
 });
 
 // Endpoint para crear un recordatorio
-app.post('/api/recordatorios/:negocioId', (req, res) => {
+app.post('/api/recordatorios/:negocioId', checkJwt, (req, res) => {
   const { negocioId } = req.params;
   const { message, frequency, time, day, activo = 1 } = req.body;
   console.log('Datos recibidos en POST /api/recordatorios/:negocioId:', { negocioId, message, frequency, time, day, activo });
@@ -837,7 +1101,7 @@ app.post('/api/recordatorios/:negocioId', (req, res) => {
   // Ajustar day según la frecuencia
   const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
 
-  db.run(
+  db.query(
     'INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo, last_sent) VALUES ($1, $2, $3, $4, $5, $6, NULL)',
     [negocioId, message, frequency, time, normalizedDay, activo ? 1 : 0],
     function (err) {
@@ -852,7 +1116,7 @@ app.post('/api/recordatorios/:negocioId', (req, res) => {
 });
 
 // Endpoint para actualizar un recordatorio
-app.put('/api/recordatorios/:id', (req, res) => {
+app.put('/api/recordatorios/:id', checkJwt, (req, res) => {
   const { id } = req.params;
   const { message, frequency, time, day, activo = 1 } = req.body;
   console.log('Datos recibidos en PUT /api/recordatorios/:id:', { id, message, frequency, time, day, activo });
@@ -872,7 +1136,7 @@ app.put('/api/recordatorios/:id', (req, res) => {
   // Ajustar day según la frecuencia
   const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
 
-  db.run(
+  db.query(
     'UPDATE recordatorios SET message = $1, frequency = $2, time = $3, day = $4, activo = $5 WHERE id = $6',
     [message, frequency, time, normalizedDay, activo ? 1 : 0, id],
     function (err) {
@@ -891,7 +1155,7 @@ app.put('/api/recordatorios/:id', (req, res) => {
 });
 
 // Endpoint para activar/desactivar un recordatorio
-app.put('/api/recordatorios/:id/activo', (req, res) => {
+app.put('/api/recordatorios/:id/activo', checkJwt, (req, res) => {
   const { id } = req.params;
   const { activo } = req.body;
   console.log('Datos recibidos en PUT /api/recordatorios/:id/activo:', { id, activo });
@@ -901,7 +1165,7 @@ app.put('/api/recordatorios/:id/activo', (req, res) => {
     return res.status(400).json({ error: 'activo es requerido' });
   }
 
-  db.run(
+  db.query(
     'UPDATE recordatorios SET activo = $1 WHERE id = $2',
     [activo ? 1 : 0, id],
     function (err) {
@@ -920,11 +1184,11 @@ app.put('/api/recordatorios/:id/activo', (req, res) => {
 });
 
 // Endpoint para eliminar un recordatorio
-app.delete('/api/recordatorios/:id', (req, res) => {
+app.delete('/api/recordatorios/:id', checkJwt, (req, res) => {
   const { id } = req.params;
   console.log('Solicitud DELETE /api/recordatorios/:id:', { id });
 
-  db.run('DELETE FROM recordatorios WHERE id = $1', [id], function (err) {
+  db.query('DELETE FROM recordatorios WHERE id = $1', [id], function (err) {
     if (err) {
       console.error('Error al eliminar recordatorio:', err.message);
       return res.status(500).json({ error: err.message });
@@ -938,29 +1202,29 @@ app.delete('/api/recordatorios/:id', (req, res) => {
   });
 });
 
-app.get('/api/mensajes-pedidos/:negocioId', (req, res) => {
+app.get('/api/mensajes-pedidos/:negocioId', checkJwt, (req, res) => {
   console.log(`Solicitud GET /api/mensajes-pedidos/${req.params.negocioId}`);
-  db.all('SELECT * FROM mensajes_pedidos WHERE negocio_id = $1', [req.params.negocioId], (err, rows) => {
+  db.query('SELECT * FROM mensajes_pedidos WHERE negocio_id = $1', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener mensajes de pedidos:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    res.json(rows);
+    res.json(rows.rows);
   });
 });
 
-app.get('/api/pedidos/:negocioId', (req, res) => {
+app.get('/api/pedidos/:negocioId', checkJwt, (req, res) => {
   console.log(`Solicitud GET /api/pedidos/${req.params.negocioId}`);
-  db.all('SELECT * FROM pedidos WHERE negocio_id = $1 ORDER BY created_at DESC', [req.params.negocioId], (err, rows) => {
+  db.query('SELECT * FROM pedidos WHERE negocio_id = $1 ORDER BY created_at DESC', [req.params.negocioId], (err, rows) => {
     if (err) {
       console.error('Error al obtener pedidos:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    res.json(rows);
+    res.json(rows.rows);
   });
 });
 
-app.post('/api/pedidos/:negocioId', (req, res) => {
+app.post('/api/pedidos/:negocioId', checkJwt, (req, res) => {
   const { negocioId } = req.params;
   const { numero_cliente, items } = req.body;
   console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items });
@@ -972,7 +1236,7 @@ app.post('/api/pedidos/:negocioId', (req, res) => {
 
   const itemsString = JSON.stringify(items);
 
-  db.run(
+  db.query(
     'INSERT INTO pedidos (negocio_id, numero_cliente, items, estado) VALUES ($1, $2, $3, $4)',
     [negocioId, numero_cliente, itemsString, 'recibido'],
     function (err) {
@@ -986,7 +1250,7 @@ app.post('/api/pedidos/:negocioId', (req, res) => {
   );
 });
 
-app.get('/api/ingresos/:negocioId', (req, res) => {
+app.get('/api/ingresos/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
 
@@ -994,7 +1258,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-    db.all(
+    db.query(
         'SELECT items FROM pedidos WHERE negocio_id = $1',
         [negocioId],
         (err, rows) => {
@@ -1004,7 +1268,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
 
             const productosVendidos = {};
 
-            for (const row of rows) {
+            for (const row of rows.rows) {
                 try {
                     const items = JSON.parse(row.items);
                     for (const item of items) {
@@ -1027,7 +1291,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
             }
 
             const placeholders = nombres.map((_, i) => `$${i + 2}`).join(',');
-            db.all(
+            db.query(
                 `SELECT nombre, precio FROM productos WHERE negocio_id = $1 AND nombre IN (${placeholders})`,
                 [negocioId, ...nombres],
                 (err, productosConPrecio) => {
@@ -1036,7 +1300,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
                 }
 
                 let total = 0;
-                for (const producto of productosConPrecio) {
+                for (const producto of productosConPrecio.rows) {
                     const cantidad = productosVendidos[producto.nombre] || 0;
                     total += cantidad * producto.precio;
                 }
@@ -1048,7 +1312,7 @@ app.get('/api/ingresos/:negocioId', (req, res) => {
     );
 });
 
-app.get('/api/cantVentas/:negocioId', (req, res) => {
+app.get('/api/cantVentas/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
     console.log(`Solicitud GET /api/cantVentas/${negocioId})`);
@@ -1056,19 +1320,19 @@ app.get('/api/cantVentas/:negocioId', (req, res) => {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-    db.get(
+    db.query(
         'SELECT count(*) as count FROM pedidos WHERE negocio_id = $1',
         [negocioId],
         (err, row) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
-            res.json({ count: row.count });
+            res.json({ count: row.rows[0].count });
         }
     );
 });
 
-app.get('/api/productosVendidos/:negocioId', (req, res) => {
+app.get('/api/productosVendidos/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
 
@@ -1076,7 +1340,7 @@ app.get('/api/productosVendidos/:negocioId', (req, res) => {
         return res.status(400).json({ error: 'negocioId es requerido' });
     }
 
-    db.all(
+    db.query(
         'SELECT items FROM pedidos WHERE negocio_id = $1',
         [negocioId],
         (err, rows) => {
@@ -1086,7 +1350,7 @@ app.get('/api/productosVendidos/:negocioId', (req, res) => {
 
             const productosVendidos = {};
 
-            for (const row of rows) {
+            for (const row of rows.rows) {
                 try {
                     const items = JSON.parse(row.items);
                     for (const item of items) {
@@ -1107,7 +1371,7 @@ app.get('/api/productosVendidos/:negocioId', (req, res) => {
     );
 });
 
-app.get('/api/ventasPorSemana/:negocioId', (req, res) => {
+app.get('/api/ventasPorSemana/:negocioId', checkJwt, (req, res) => {
   const { negocioId } = req.params;
   const { year, month } = req.query;
   console.log(`Solicitud GET /api/ventasPorSemana/${negocioId}`, { year, month });
@@ -1124,14 +1388,14 @@ app.get('/api/ventasPorSemana/:negocioId', (req, res) => {
     params.push(year, month);
   }
 
-  db.all(query, params, (err, rows) => {
+  db.query(query, params, (err, rows) => {
     if (err) {
       console.error('Error al obtener pedidos:', err.message);
       return res.status(500).json({ error: err.message });
     }
 
     const ventasPorSemana = {};
-    for (const row of rows) {
+    for (const row of rows.rows) {
       const date = new Date(row.created_at);
       const weekNumber = getWeekNumber(date);
       const key = `${date.getFullYear()}-W${weekNumber}`;
@@ -1172,8 +1436,19 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  initializeClients(); 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: err.message });
 });
+
+console.log('Current clients:', clients);
+
+function initializeClientForNegocio(negocio) {
+  const negocioId = negocio.id;
+  console.log(`Initializing client for negocio ${negocioId}: ${negocio.nombre}`);
+
+  // Delegate initialization to client.js to avoid duplication
+  const { initializeClientForNegocio: initClient } = require('./whatsapp/client');
+  initClient(negocio);
+}

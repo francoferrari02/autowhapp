@@ -1,11 +1,11 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  user: 'autowhapp_user',
-  host: 'localhost',
-  database: 'autowhapp',
-  password: 'tu_contraseña_segura',
-  port: 5432,
+  user: process.env.DB_USER || 'autowhapp_user',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'autowhapp',
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT || 5432
 });
 
 pool.connect((err) => {
@@ -20,22 +20,16 @@ pool.connect((err) => {
 pool.query(`
   CREATE TABLE IF NOT EXISTS negocios (
     id SERIAL PRIMARY KEY,
-    nombre TEXT NOT NULL,
-    numero_telefono TEXT NOT NULL,
-    grupo_id TEXT,
-    tipo_negocio TEXT,
-    localidad TEXT,
-    direccion TEXT,
-    horarios TEXT,
+    nombre VARCHAR(255) NOT NULL,
+    numero_telefono VARCHAR(20) NOT NULL,
+    tipo_negocio VARCHAR(50) NOT NULL,
+    localidad VARCHAR(100) NOT NULL,
+    direccion TEXT NOT NULL,
+    horarios JSONB,
     contexto TEXT,
-    estado_bot INTEGER DEFAULT 1,
-    modulo_pedidos INTEGER DEFAULT 0,
-    modulo_reservas INTEGER DEFAULT 0,
-    modulo_recordatorios INTEGER DEFAULT 0,
-    appointment_duration INTEGER DEFAULT 60,
-    break_between INTEGER DEFAULT 15,
-    hora_inicio_default TEXT DEFAULT '09:00',
-    hora_fin_default TEXT DEFAULT '18:00'
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS reservas (
@@ -55,14 +49,12 @@ pool.query(`
 
   CREATE TABLE IF NOT EXISTS recordatorios (
     id SERIAL PRIMARY KEY,
-    negocio_id INTEGER NOT NULL,
-    message TEXT NOT NULL,
-    frequency TEXT NOT NULL,
-    time TEXT NOT NULL,
-    day TEXT,
-    activo INTEGER DEFAULT 1,
-    last_sent TIMESTAMP,
-    CONSTRAINT fk_negocio_recordatorios FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+    negocio_id INTEGER NOT NULL REFERENCES negocios(id),
+    fecha_recordatorio TIMESTAMP WITH TIME ZONE NOT NULL,
+    mensaje TEXT NOT NULL,
+    activo BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS faqs (
@@ -100,11 +92,19 @@ pool.query(`
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_negocio_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
   );
+
+  REATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    auth0_id VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 `, (err) => {
   if (err) {
-    console.error('Error al crear tablas:', err.message);
+    console.error('Error al crear/modificar tablas:', err.message);
   } else {
-    console.log('Tablas creadas o ya existen en PostgreSQL');
+    console.log('Tablas actualizadas en PostgreSQL');
   }
 });
 

@@ -1,3 +1,4 @@
+// Header.tsx
 import React, { useState, useEffect } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Menu, MenuItem } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -5,12 +6,14 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import AddIcon from '@mui/icons-material/Add';
 import QrCodeIcon from '@mui/icons-material/QrCode';
-import logo from '../assets/LogoAutoWhappBlanco.png';
 import { useNavigate } from 'react-router-dom';
 import { useNegocio } from '../NegocioContext';
+import { useAuth0 } from '@auth0/auth0-react';
+import logo from '../assets/LogoAutoWhappBlanco.png';
 
 const Header: React.FC = () => {
   const { negocioId, setNegocioId, negocios } = useNegocio();
+  const { logout, user } = useAuth0();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [qrAnchorEl, setQrAnchorEl] = useState<null | HTMLElement>(null);
   const [qrs, setQrs] = useState<any[]>([]);
@@ -33,9 +36,10 @@ const Header: React.FC = () => {
     setQrAnchorEl(null);
   };
 
-  const handleNegocioSelect = (negocioId: number) => {
-    setNegocioId(negocioId);
+  const handleNegocioSelect = (id: number) => {
+    setNegocioId(id);
     handleMenuClose();
+    navigate('/config');
   };
 
   const handleAddBusiness = () => {
@@ -43,20 +47,25 @@ const Header: React.FC = () => {
     navigate('/add-business');
   };
 
+  const handleLogout = () => {
+    logout({ logoutParams: { returnTo: window.location.origin } });
+  };
+
   const fetchQrs = async () => {
     try {
       const response = await fetch('http://localhost:3000/api/qrs');
       const data = await response.json();
       setQrs(data);
+      console.log('QRs fetched:', data);
     } catch (error) {
       console.error('Error al obtener QRs:', error);
+      setQrs([]);
     }
   };
 
   useEffect(() => {
     if (qrAnchorEl) {
-      fetchQrs();
-      const interval = setInterval(fetchQrs, 5000);
+      const interval = setInterval(fetchQrs, 5000); // Actualizar cada 5 segundos
       return () => clearInterval(interval);
     }
   }, [qrAnchorEl]);
@@ -67,7 +76,7 @@ const Header: React.FC = () => {
     <AppBar
       position="sticky"
       sx={{
-        background: 'linear-gradient(90deg, rgb(69, 79, 255) 17%, rgb(255, 255, 255) 28%)',
+        background: 'linear-gradient(90deg, rgb(2, 2, 2) 72%, rgb(255, 255, 255) 80%)',
         boxShadow: '0 6px 24px -8px rgba(50,60,130,0.5), 0 5px 3px 0 rgba(30,40,90,0.5)',
         zIndex: 1300,
       }}
@@ -97,6 +106,7 @@ const Header: React.FC = () => {
         <IconButton
           sx={{ backgroundColor: 'rgb(69, 79, 225)', marginRight: 1, '&:hover': { backgroundColor: '#93C5FD' } }}
           onClick={handleQrMenuOpen}
+          disabled={negocios.length === 0}
         >
           <QrCodeIcon sx={{ color: '#FFFFFF' }} />
         </IconButton>
@@ -112,6 +122,9 @@ const Header: React.FC = () => {
           onClose={handleMenuClose}
           PaperProps={{ sx: { backgroundColor: 'rgb(69, 79, 225)', color: '#FFFFFF' } }}
         >
+          <MenuItem disabled sx={{ fontFamily: 'Poppins' }}>
+            {user?.name || 'Usuario'}
+          </MenuItem>
           {negocios.length === 0 ? (
             <MenuItem disabled>No se pudieron cargar negocios</MenuItem>
           ) : (
@@ -136,6 +149,12 @@ const Header: React.FC = () => {
             <AddIcon sx={{ mr: 1 }} />
             Agregar Negocio
           </MenuItem>
+          <MenuItem
+            onClick={handleLogout}
+            sx={{ fontFamily: 'Poppins', '&:hover': { backgroundColor: '#93C5FD' } }}
+          >
+            Cerrar Sesión
+          </MenuItem>
         </Menu>
         <Menu
           anchorEl={qrAnchorEl}
@@ -144,11 +163,11 @@ const Header: React.FC = () => {
           PaperProps={{ sx: { backgroundColor: 'rgb(69, 79, 225)', color: '#FFFFFF', maxWidth: '400px' } }}
         >
           {qrs.length === 0 ? (
-            <MenuItem disabled>Todos los negocios están autenticados</MenuItem>
+            <MenuItem disabled>Todos los negocios están autenticados o no hay QR disponibles</MenuItem>
           ) : (
             qrs.map(qr => (
               <MenuItem key={qr.negocioId} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <Typography>{qr.nombre}</Typography> {/* Usamos qr.nombre directamente */}
+                <Typography>{qr.nombre}</Typography>
                 <img src={qr.qr} alt={`QR para negocio ${qr.negocioId}`} style={{ width: '200px', height: '200px' }} />
               </MenuItem>
             ))

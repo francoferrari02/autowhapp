@@ -21,6 +21,7 @@ const AnimatedGradientText = ({
         animate-gradient-sweep
         bg-[length:400%_100%]
         bg-clip-text
+
         text-transparent
       `} style={{ animationDuration: `${duration}s` }}>
         {children}
