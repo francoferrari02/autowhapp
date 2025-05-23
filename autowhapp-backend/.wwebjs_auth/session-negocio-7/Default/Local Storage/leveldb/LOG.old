@@ -1,0 +1,5 @@
+2025/05/21-16:38:59.545 9f03 Creating DB /Users/francoferrari/Desktop/ITBA/IngeSoft/autowhapp/autowhapp-backend/.wwebjs_auth/session-negocio-7/Default/Local Storage/leveldb since it was missing.
+2025/05/21-16:38:59.555 9f03 Reusing MANIFEST /Users/francoferrari/Desktop/ITBA/IngeSoft/autowhapp/autowhapp-backend/.wwebjs_auth/session-negocio-7/Default/Local Storage/leveldb/MANIFEST-000001
+2025/05/22-19:03:33.657 2903 Level-0 table #5: started
+2025/05/22-19:03:33.666 2903 Level-0 table #5: 17884 bytes OK
+2025/05/22-19:03:33.672 2903 Delete type=0 #3

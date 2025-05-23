@@ -1,22 +1,41 @@
+-- Crear usuario y base de datos (ejecutar como superusuario, e.g., postgres)
+DO $$ 
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'autowhapp_user') THEN
+      CREATE USER autowhapp_user WITH PASSWORD 'Autowhapp123';
+   END IF;
+END $$;
+
+-- Crear la base de datos si no existe
+DO $$ 
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'autowhapp') THEN
+      CREATE DATABASE autowhapp;
+   END IF;
+END $$;
+
+-- Conectar a la base de datos
+\c autowhapp
+
+-- Otorgar permisos al usuario autowhapp_user
+GRANT CONNECT ON DATABASE autowhapp TO autowhapp_user;
+GRANT USAGE ON SCHEMA public TO autowhapp_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO autowhapp_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO autowhapp_user;
+
 -- Crear tabla negocios
 CREATE TABLE IF NOT EXISTS negocios (
   id SERIAL PRIMARY KEY,
-  nombre TEXT NOT NULL,
-  numero_telefono TEXT NOT NULL,
-  grupo_id TEXT,
-  tipo_negocio TEXT,
-  localidad TEXT,
-  direccion TEXT,
-  horarios TEXT,
+  nombre VARCHAR(255) NOT NULL,
+  numero_telefono VARCHAR(20) NOT NULL,
+  tipo_negocio VARCHAR(50) NOT NULL,
+  localidad VARCHAR(100) NOT NULL,
+  direccion TEXT NOT NULL,
+  horarios JSONB,
   contexto TEXT,
-  estado_bot INTEGER DEFAULT 1,
-  modulo_pedidos INTEGER DEFAULT 0,
-  modulo_reservas INTEGER DEFAULT 0,
-  modulo_recordatorios INTEGER DEFAULT 0,
-  appointment_duration INTEGER DEFAULT 60,
-  break_between INTEGER DEFAULT 15,
-  hora_inicio_default TEXT DEFAULT '09:00',
-  hora_fin_default TEXT DEFAULT '18:00'
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Crear tabla reservas
@@ -39,14 +58,12 @@ CREATE INDEX IF NOT EXISTS idx_reservas_negocio_fecha ON reservas (negocio_id, f
 -- Crear tabla recordatorios
 CREATE TABLE IF NOT EXISTS recordatorios (
   id SERIAL PRIMARY KEY,
-  negocio_id INTEGER NOT NULL,
-  message TEXT NOT NULL,
-  frequency TEXT NOT NULL,
-  time TEXT NOT NULL,
-  day TEXT,
-  activo INTEGER DEFAULT 1,
-  last_sent TIMESTAMP,
-  CONSTRAINT fk_negocio_recordatorios FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+  negocio_id INTEGER NOT NULL REFERENCES negocios(id),
+  fecha_recordatorio TIMESTAMP WITH TIME ZONE NOT NULL,
+  mensaje TEXT NOT NULL,
+  activo BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Crear tabla faqs
@@ -87,4 +104,13 @@ CREATE TABLE IF NOT EXISTS pedidos (
   estado TEXT DEFAULT 'recibido',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_negocio_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear tabla usuarios
+CREATE TABLE IF NOT EXISTS usuarios (
+  id SERIAL PRIMARY KEY,
+  auth0_id VARCHAR(255) UNIQUE NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  name VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

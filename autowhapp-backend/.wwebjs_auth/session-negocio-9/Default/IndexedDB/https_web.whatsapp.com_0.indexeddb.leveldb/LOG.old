@@ -1,0 +1,23 @@
+2025/05/21-19:24:42.047 720f Creating DB /Users/francoferrari/Desktop/ITBA/IngeSoft/autowhapp/autowhapp-backend/.wwebjs_auth/session-negocio-9/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb since it was missing.
+2025/05/21-19:24:42.066 720f Reusing MANIFEST /Users/francoferrari/Desktop/ITBA/IngeSoft/autowhapp/autowhapp-backend/.wwebjs_auth/session-negocio-9/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/05/22-19:37:28.880 a58b Level-0 table #5: started
+2025/05/22-19:37:28.925 a58b Level-0 table #5: 1069025 bytes OK
+2025/05/22-19:37:28.932 a58b Delete type=0 #3
+2025/05/22-20:31:06.510 a58b Level-0 table #7: started
+2025/05/22-20:31:06.551 a58b Level-0 table #7: 1153915 bytes OK
+2025/05/22-20:31:06.559 a58b Delete type=0 #4
+2025/05/22-20:31:22.045 1375b Compacting 1@1 + 1@2 files
+2025/05/22-20:31:22.089 1375b Generated table #8@1: 24274 keys, 694735 bytes
+2025/05/22-20:31:22.089 1375b Compacted 1@1 + 1@2 files => 694735 bytes
+2025/05/22-20:31:22.098 1375b compacted to: files[ 0 0 1 0 0 0 0 ]
+2025/05/22-20:31:22.098 1375b Delete type=2 #7
+2025/05/22-20:31:22.098 1375b Delete type=2 #5
+2025/05/22-21:19:25.784 1375b Level-0 table #10: started
+2025/05/22-21:19:25.820 1375b Level-0 table #10: 1149002 bytes OK
+2025/05/22-21:19:25.827 1375b Delete type=0 #6
+2025/05/22-21:19:49.743 a58b Compacting 1@1 + 1@2 files
+2025/05/22-21:19:49.789 a58b Generated table #11@1: 30885 keys, 860604 bytes
+2025/05/22-21:19:49.789 a58b Compacted 1@1 + 1@2 files => 860604 bytes
+2025/05/22-21:19:49.794 a58b compacted to: files[ 0 0 1 0 0 0 0 ]
+2025/05/22-21:19:49.794 a58b Delete type=2 #10
+2025/05/22-21:19:49.794 a58b Delete type=2 #8
