@@ -31,7 +31,7 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (negocios.length > 0 && negocioId === null) {
       setNegocioId(negocios[0].id);
     }
-  }, [negocios, negocioId]);
+  }, [negocios /*negocioId*/]);
 
   const refreshNegocios = async () => {
     try {
@@ -59,7 +59,7 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const connectWebSocket = async () => {
+  /* const connectWebSocket = async () => {
     try {
       if (!isAuthenticated || authLoading) {
         return;
@@ -115,7 +115,7 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('Error connecting to WebSocket:', error);
       return undefined;
     }
-  };
+  }; */
 
   useEffect(() => {
     let ws: WebSocket | undefined;
@@ -123,17 +123,17 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const setupWebSocket = async () => {
       if (isAuthenticated && !authLoading) {
         await refreshNegocios();
-        ws = await connectWebSocket();
+        /* ws = await connectWebSocket(); */
       }
     };
 
     setupWebSocket();
 
-    return () => {
+    /* return () => {
       if (ws) {
         ws.close();
-      }
-    };
+      } */
+    /* }; */
   }, [isAuthenticated, authLoading]);
 
   return (

@@ -1,3 +1,5 @@
 autowhapp-backend/node_modules/
 autowhapp-dashboard/node_modules/
-autowhapp-dashboard/.env
+*.wwebjs_cache/
+*.wwebjs_auth/
+*.log

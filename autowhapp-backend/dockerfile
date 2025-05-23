@@ -40,4 +40,5 @@ EXPOSE 3000
 
 
 # Command to run the application
-CMD [ "node", "index.js" ]
+# ...existing code...
+ENTRYPOINT ["sh", "-c", "pkill -f chrome || true; pkill -f chromium || true; node index.js"]

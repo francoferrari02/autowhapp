@@ -53,9 +53,9 @@ const Header: React.FC = () => {
 
   const fetchQrs = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/qrs');
-      const data = await response.json();
-      setQrs(data);
+      const response = await axios.get('http://localhost:3000/api/qrs');
+      const data = await response.data;
+      setQrs(data as any);
       console.log('QRs fetched:', data);
     } catch (error) {
       console.error('Error al obtener QRs:', error);
