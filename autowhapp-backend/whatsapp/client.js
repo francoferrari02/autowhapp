@@ -268,7 +268,7 @@ function initializeClientForNegocio(negocio) {
       numeroCliente += '@c.us';
     }
 
-    const webhookUrl = 'https://ed85-190-224-155-63.ngrok-free.app/webhook/procesar-mensaje';
+    const webhookUrl = ' https://b3c1-181-92-91-73.ngrok-free.app/webhook/procesar-mensaje';
     const payload = {
       mensaje: msg.body,
       numeroCliente,

@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useNegocio } from '../NegocioContext';
 import { useAuth0 } from '@auth0/auth0-react';
 import logo from '../assets/LogoAutoWhappBlanco.png';
+import axios from 'axios';
 
 const Header: React.FC = () => {
   const { negocioId, setNegocioId, negocios } = useNegocio();
