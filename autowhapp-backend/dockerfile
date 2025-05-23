@@ -1,0 +1,43 @@
+# Use Node.js LTS version as base image
+FROM node:20-slim
+
+# Install required dependencies for Puppeteer
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-thai-tlwg \
+    fonts-kacst \
+    fonts-freefont-ttf \
+    --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Install app dependencies
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Bundle app source
+COPY . .
+
+USER node
+
+# # Create directories for WhatsApp Web.js
+# RUN mkdir -p .wwebjs_auth .wwebjs_cache
+
+# Expose the port your app runs on
+EXPOSE 3000
+
+
+
+# Command to run the application
+CMD [ "node", "index.js" ]

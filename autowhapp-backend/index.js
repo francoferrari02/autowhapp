@@ -17,11 +17,11 @@ const port = process.env.PORT || 3000;
 
 // Configuración de la base de datos
 const dbConfig = {
-  user: 'autowhapp_user',
-  host: 'localhost',
-  database: 'autowhapp',
-  password: 'Autowhapp123',
-  port: 5432,
+  user: process.env.DB_USER || 'autowhapp_user',
+  host: process.env.DB_HOST || 'db', // Cambia 'localhost' por 'db'
+  database: process.env.DB_NAME || 'autowhapp',
+  password: process.env.DB_PASSWORD || 'Autowhapp123',
+  port: process.env.DB_PORT || 5432,
 };
 
 console.log('Database configuration:', {
@@ -34,10 +34,16 @@ const db = new Pool(dbConfig);
 initializeClients();
 
 // Middleware
-app.use(cors({
+// Middleware
+const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3001',
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type']
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Maneja preflight requests
+
 app.use(express.json());
 
 // Configuración de Auth0
@@ -51,8 +57,7 @@ const checkJwt = jwt({
   audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/',
   issuer: `https://dev-15eg10mp60jkcv6l.us.auth0.com/`,
   algorithms: ['RS256']
-}).unless({ path: ['/api/qrs', '/ws'] }); // Add /ws to the excluded paths
-
+}).unless({ path: ['/api/qrs', '/ws'], method: 'OPTIONS' }); // Excluye OPTIONS
 // Middleware para logging de requests
 app.use((req, res, next) => {
   console.log('Incoming request:', {
@@ -168,15 +173,17 @@ app.get('/api/user/negocios', checkJwt, asyncHandler(async (req, res) => {
   } catch (err) {
     console.error('Error fetching negocios:', err);
     console.error('Error stack:', err.stack);
+    console.error('Request details:', {
+      auth0Id: auth0Id,
+      headers: req.headers,
+      userInfo: userInfo || 'Not fetched'
+    });
     res.status(500).json({ 
-      error: err.message,
-      details: err.stack,
+      error: 'Internal Server Error',
+      details: err.message,
+      stack: err.stack,
       authPayload: req.auth?.payload
     });
-  } finally {
-    if (client) {
-      client.release();
-    }
   }
 }));
 
@@ -199,9 +206,10 @@ const wss = new WebSocket.Server({ noServer: true });
 
 // Manejar conexiones WebSocket
 wss.on('connection', (ws, req) => {
+  
   console.log('New WebSocket connection established');
   
-  // Verificar el token aquí
+  // Obtener el token del encabezado sec-websocket-protocol
   const token = req.headers['sec-websocket-protocol'];
   if (!token) {
     console.log('No token provided in WebSocket connection');
@@ -209,7 +217,7 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  // Verificar el token con Auth0
+  // Verificar el token
   jwt({
     secret: jwks.expressJwtSecret({
       cache: true,
@@ -227,14 +235,12 @@ wss.on('connection', (ws, req) => {
       return;
     }
     console.log('WebSocket authentication successful');
-  });
-
-  ws.on('message', (message) => {
-    console.log('Received:', message);
-  });
-
-  ws.on('close', () => {
-    console.log('Client disconnected');
+    ws.on('message', (message) => {
+      console.log('Received:', message);
+    });
+    ws.on('close', () => {
+      console.log('Client disconnected');
+    });
   });
 });
 

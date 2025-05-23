@@ -23,6 +23,15 @@ GRANT USAGE ON SCHEMA public TO autowhapp_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO autowhapp_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO autowhapp_user;
 
+-- Crear tabla usuarios (debe crearse primero porque otras tablas dependen de ella)
+CREATE TABLE IF NOT EXISTS usuarios (
+    id SERIAL PRIMARY KEY,
+    auth0_id VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Crear tabla negocios
 CREATE TABLE IF NOT EXISTS negocios (
   id SERIAL PRIMARY KEY,
@@ -104,13 +113,4 @@ CREATE TABLE IF NOT EXISTS pedidos (
   estado TEXT DEFAULT 'recibido',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_negocio_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
-);
-
--- Crear tabla usuarios
-CREATE TABLE IF NOT EXISTS usuarios (
-  id SERIAL PRIMARY KEY,
-  auth0_id VARCHAR(255) UNIQUE NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  name VARCHAR(255),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

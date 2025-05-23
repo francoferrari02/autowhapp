@@ -46,7 +46,7 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       });
       console.log('Access token:', token);
-      const response = await axios.get('http://localhost:3000/api/user/negocios', {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/user/negocios`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -77,7 +77,7 @@ export const NegocioProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
 
-      const ws = new WebSocket('ws://localhost:3000/ws', [token]);
+      const ws = new WebSocket(`${process.env.REACT_APP_API_WS_URL || 'ws://localhost:3000'}/ws`, [token]);
       
       ws.onopen = () => {
         console.log('WebSocket connected successfully');

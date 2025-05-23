@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./.wwebjs_auth:/usr/src/app/.wwebjs_auth
+      - ./.wwebjs_cache:/usr/src/app/.wwebjs_cache
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=autowhapp_user
+      - DB_PASSWORD=Autowhapp123
+      - DB_NAME=autowhapp
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: autowhapp_user
+      POSTGRES_PASSWORD: Autowhapp123
+      POSTGRES_DB: autowhapp
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../init_schema.sql:/docker-entrypoint-initdb.d/00-init-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autowhapp_user -d autowhapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ../autowhapp-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+    - REACT_APP_API_URL=http://localhost:3000
+    - REACT_APP_API_WS_URL=ws://localhost:3000
+    - REACT_APP_AUTH0_AUDIENCE=https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/
+    - REACT_APP_AUTH0_DOMAIN=dev-15eg10mp60jkcv6l.us.auth0.com
+    - REACT_APP_AUTH0_CLIENT_ID=6963-190-224-155-63.ngrok-free.app
+    - REACT_APP_FRONTEND_URL=http://localhost:3001
+
+    depends_on:
+      - app
+
+  n8n:
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_LOG_LEVEL=debug
+      - N8N_TRUST_PROXY=true
+      - WEBHOOK_URL=https://6963-190-224-155-63.ngrok-free.app
+    volumes:
+      - ./n8n-workflows:/home/node/.n8n
+    depends_on:
+      - app
+
+volumes:
+  postgres_data:
