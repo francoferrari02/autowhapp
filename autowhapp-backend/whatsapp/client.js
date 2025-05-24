@@ -70,8 +70,29 @@ function initializeClientForNegocio(negocio) {
   }
 
   const client = new Client({
-    authStrategy: new LocalAuth({ clientId: `negocio-${negocioId}` }),
-  });
+  authStrategy: new LocalAuth({ 
+    clientId: `negocio-${negocioId}`,
+    dataPath: `/tmp/.wwebjs_auth_${negocioId}` // Use /tmp - always writable
+  }),
+  puppeteer: {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--user-data-dir=/tmp/chrome-user-data-${negocioId}-${Date.now()}'
+    ],
+    pipe: true,
+    timeout: 60000
+  }
+});
 
   // Update the client reference in clients[negocioId]
   clients[negocioId].client = client;
@@ -268,7 +289,7 @@ function initializeClientForNegocio(negocio) {
       numeroCliente += '@c.us';
     }
 
-    const webhookUrl = ' https://b3c1-181-92-91-73.ngrok-free.app/webhook/procesar-mensaje';
+    const webhookUrl = 'https://6963-190-224-155-63.ngrok-free.app/webhook/procesar-mensaje';
     const payload = {
       mensaje: msg.body,
       numeroCliente,
@@ -309,7 +330,7 @@ function initializeClientForNegocio(negocio) {
   console.log(`Cliente inicializado para negocio ${negocioId}`);
 }
 
-async function identificarNegocio(cleanNumero) {
+/* async function identificarNegocio(cleanNumero) {
   console.log(`Buscando negocio con número: ${cleanNumero}`);
   try {
     const { rows } = await db.query(
@@ -364,6 +385,81 @@ async function identificarNegocioPorId(negocioId) {
       localidad: negocio.localidad,
       direccion: negocio.direccion,
       horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
+      contexto: negocio.contexto || '',
+      estado_bot: Number(negocio.estado_bot) === 1,
+      modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
+      modulo_reservas: Number(negocio.modulo_reservas) === 1,
+      appointment_duration: Number(negocio.appointment_duration) || 60,
+      break_between: Number(negocio.break_between) || 15,
+      hora_inicio_default: negocio.hora_inicio_default || '09:00',
+      hora_fin_default: negocio.hora_fin_default || '18:00',
+    };
+  } catch (err) {
+    console.error('Error al buscar negocio por ID:', err.message);
+    return null;
+  }
+} */
+
+  async function identificarNegocio(cleanNumero) {
+  console.log(`Buscando negocio con número: ${cleanNumero}`);
+  try {
+    // Remove + sign and any non-numeric characters for comparison
+    const normalizedInput = cleanNumero.replace(/[^0-9]/g, '');
+    
+    const { rows } = await db.query(
+      'SELECT * FROM negocios WHERE regexp_replace(numero_telefono, \'[^0-9]\', \'\', \'g\') = $1',
+      [normalizedInput]
+    );
+    const negocio = rows[0];
+    if (!negocio) {
+      console.log('Negocio no encontrado para número:', cleanNumero);
+      return null;
+    }
+    console.log('Datos crudos de identificarNegocio:', negocio);
+    return {
+      id: negocio.id,
+      nombre: negocio.nombre,
+      numero_telefono: negocio.numero_telefono,
+      grupo_id: negocio.grupo_id,
+      tipo_negocio: negocio.tipo_negocio,
+      localidad: negocio.localidad,
+      direccion: negocio.direccion,
+      // Fix JSON parsing - check if it's already an object or string
+      horarios: typeof negocio.horarios === 'string' ? JSON.parse(negocio.horarios) : negocio.horarios || {},
+      contexto: negocio.contexto || '',
+      estado_bot: Number(negocio.estado_bot) === 1,
+      modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
+      modulo_reservas: Number(negocio.modulo_reservas) === 1,
+      appointment_duration: Number(negocio.appointment_duration) || 60,
+      break_between: Number(negocio.break_between) || 15,
+      hora_inicio_default: negocio.hora_inicio_default || '09:00',
+      hora_fin_default: negocio.hora_fin_default || '18:00',
+    };
+  } catch (err) {
+    console.error('Error al buscar negocio:', err.message);
+    return null;
+  }
+}
+
+async function identificarNegocioPorId(negocioId) {
+  try {
+    const { rows } = await db.query('SELECT * FROM negocios WHERE id = $1', [negocioId]);
+    const negocio = rows[0];
+    if (!negocio) {
+      console.log('Negocio no encontrado por ID:', negocioId);
+      return null;
+    }
+    console.log('Datos crudos de identificarNegocioPorId:', negocio);
+    return {
+      id: negocio.id,
+      nombre: negocio.nombre,
+      numero_telefono: negocio.numero_telefono,
+      grupo_id: negocio.grupo_id,
+      tipo_negocio: negocio.tipo_negocio,
+      localidad: negocio.localidad,
+      direccion: negocio.direccion,
+      // Fix JSON parsing - check if it's already an object or string
+      horarios: typeof negocio.horarios === 'string' ? JSON.parse(negocio.horarios) : negocio.horarios || {},
       contexto: negocio.contexto || '',
       estado_bot: Number(negocio.estado_bot) === 1,
       modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
