@@ -11,8 +11,8 @@ import ReservationsPage from './pages/ReservationsPage';
 import RemindersPage from './pages/RemindersPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import LoginPage from './pages/LoginPage';
+import PricingPage from './pages/PricingPage';
 
-// Componente de pantalla de carga
 const LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-100">
     <div className="text-center">
@@ -22,12 +22,11 @@ const LoadingScreen = () => (
   </div>
 );
 
-// Mapeo de rutas a valores de 'selected'
 const getSelectedTab = (path: string): 'config' | 'orders' | 'analytics' | 'reservations' | 'reminders' => {
-  const route = path.split('/')[1] || 'config'; // Obtiene el primer segmento de la ruta
+  const route = path.split('/')[1] || 'config';
   switch (route) {
     case 'config':
-    case 'dashboard': // Mapea /dashboard a "config"
+    case 'dashboard':
       return 'config';
     case 'orders':
       return 'orders';
@@ -38,11 +37,10 @@ const getSelectedTab = (path: string): 'config' | 'orders' | 'analytics' | 'rese
     case 'reminders':
       return 'reminders';
     default:
-      return 'config'; // Fallback a 'config' si la ruta no coincide
+      return 'config';
   }
 };
 
-// Componente de ruta protegida
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth0();
 
@@ -61,6 +59,7 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const selectedTab = getSelectedTab(location.pathname);
   const isLoginPage = location.pathname === '/';
+  const isPricingPage = location.pathname === '/pricing';
   const { negocioId, negocios, setNegocioId } = useNegocio();
   const { isAuthenticated } = useAuth0();
   console.log('negocioId:', negocioId, 'negocios:', negocios);
@@ -73,9 +72,9 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {!isLoginPage && <Header />}
+      {!isLoginPage && !isPricingPage && <Header />}
       <div className="flex flex-grow">
-        {!isLoginPage && <Sidebar selected={selectedTab} />}
+        {!isLoginPage && !isPricingPage && <Sidebar selected={selectedTab} />}
         <div className="flex-grow">
           <Routes>
             <Route
@@ -83,6 +82,10 @@ const AppContent: React.FC = () => {
               element={
                 isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
               }
+            />
+            <Route
+              path="/pricing"
+              element={<PricingPage />}
             />
             <Route
               path="/config"

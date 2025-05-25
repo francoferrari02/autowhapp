@@ -1,4 +1,3 @@
-// Header.tsx
 import React, { useState, useEffect } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Menu, MenuItem } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -13,11 +12,19 @@ import logo from '../assets/LogoAutoWhappBlanco.png';
 import axios from 'axios';
 
 const Header: React.FC = () => {
-  const { negocioId, setNegocioId, negocios } = useNegocio();
+  const { negocioId, setNegocioId, negocios, refreshNegocios } = useNegocio();
   const { logout, user } = useAuth0();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [qrAnchorEl, setQrAnchorEl] = useState<null | HTMLElement>(null);
+  const [planAnchorEl, setPlanAnchorEl] = useState<null | HTMLElement>(null);
   const [qrs, setQrs] = useState<any[]>([]);
+  const [planes, setPlanes] = useState<string[]>([
+    'Plan Servicios',
+    'Plan Servicios Plus',
+    'Plan Tienda',
+    'Plan Tienda Plus',
+    'Plan Premium',
+  ]);
   const navigate = useNavigate();
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -29,12 +36,20 @@ const Header: React.FC = () => {
     fetchQrs();
   };
 
+  const handlePlanMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setPlanAnchorEl(event.currentTarget);
+  };
+
   const handleMenuClose = () => {
     setAnchorEl(null);
   };
 
   const handleQrMenuClose = () => {
     setQrAnchorEl(null);
+  };
+
+  const handlePlanMenuClose = () => {
+    setPlanAnchorEl(null);
   };
 
   const handleNegocioSelect = (id: number) => {
@@ -52,12 +67,21 @@ const Header: React.FC = () => {
     logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
+  const handlePlanSelect = async (plan: string) => {
+    if (!negocioId) return;
+    try {
+      await axios.put(`/api/negocio/${negocioId}/plan`, { plan });
+      await refreshNegocios(); // Refrescar negocios para reflejar los cambios
+      handlePlanMenuClose();
+    } catch (error) {
+      console.error('Error al cambiar plan:', error);
+    }
+  };
+
   const fetchQrs = async () => {
     try {
       const response = await axios.get('http://localhost:3000/api/qrs');
-      const data = await response.data;
-      setQrs(data as any);
-      console.log('QRs fetched:', data);
+      setQrs(response.data as any[]);
     } catch (error) {
       console.error('Error al obtener QRs:', error);
       setQrs([]);
@@ -66,7 +90,7 @@ const Header: React.FC = () => {
 
   useEffect(() => {
     if (qrAnchorEl) {
-      const interval = setInterval(fetchQrs, 5000); // Actualizar cada 5 segundos
+      const interval = setInterval(fetchQrs, 5000);
       return () => clearInterval(interval);
     }
   }, [qrAnchorEl]);
@@ -101,6 +125,7 @@ const Header: React.FC = () => {
         </IconButton>
         <IconButton
           sx={{ backgroundColor: 'rgb(69, 79, 225)', marginRight: 1, '&:hover': { backgroundColor: '#93C5FD' } }}
+          onClick={handlePlanMenuOpen}
         >
           <SettingsIcon sx={{ color: '#FFFFFF' }} />
         </IconButton>
@@ -158,6 +183,22 @@ const Header: React.FC = () => {
           </MenuItem>
         </Menu>
         <Menu
+          anchorEl={planAnchorEl}
+          open={Boolean(planAnchorEl)}
+          onClose={handlePlanMenuClose}
+          PaperProps={{ sx: { backgroundColor: 'rgb(69, 79, 225)', color: '#FFFFFF' } }}
+        >
+          {planes.map(plan => (
+            <MenuItem
+              key={plan}
+              onClick={() => handlePlanSelect(plan)}
+              sx={{ fontFamily: 'Poppins', '&:hover': { backgroundColor: '#93C5FD' } }}
+            >
+              {plan}
+            </MenuItem>
+          ))}
+        </Menu>
+        <Menu
           anchorEl={qrAnchorEl}
           open={Boolean(qrAnchorEl)}
           onClose={handleQrMenuClose}
@@ -175,7 +216,7 @@ const Header: React.FC = () => {
           )}
         </Menu>
       </Toolbar>
-    </AppBar>
+</AppBar>
   );
 };
 

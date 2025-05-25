@@ -1426,6 +1426,84 @@ app.get('/api/ventasPorSemana/:negocioId', checkJwt, (req, res) => {
   });
 });
 
+//actualiza el plan del negocio
+app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
+  const { id } = req.params;
+  const { plan } = req.body;
+  const auth0Id = req.auth.sub;
+
+  if (!plan) {
+    return res.status(400).json({ error: 'Plan es requerido' });
+  }
+
+  let client;
+  try {
+    client = await db.connect();
+
+    // Verificar que el negocio pertenece al usuario
+    const userResult = await client.query(
+      'SELECT n.id FROM negocios n JOIN users u ON n.user_id = u.id WHERE n.id = $1 AND u.auth0_id = $2',
+      [id, auth0Id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado o no autorizado' });
+    }
+
+    // Definir los módulos según el plan
+    let modulos = {
+      modulo_pedidos: 0,
+      modulo_reservas: 0,
+      modulo_recordatorios: 0,
+      modulo_analiticas: 0,
+      modulo_pagos: 0,
+    };
+
+    switch (plan) {
+      case 'Plan Servicios':
+        modulos.modulo_reservas = 1;
+        modulos.modulo_recordatorios = 1;
+        break;
+      case 'Plan Servicios Plus':
+        modulos.modulo_reservas = 1;
+        modulos.modulo_recordatorios = 1;
+        modulos.modulo_analiticas = 1;
+        break;
+      case 'Plan Tienda':
+        modulos.modulo_pedidos = 1;
+        modulos.modulo_analiticas = 1;
+        break;
+      case 'Plan Tienda Plus':
+        modulos.modulo_pedidos = 1;
+        modulos.modulo_analiticas = 1;
+        modulos.modulo_pagos = 1;
+        break;
+      case 'Plan Premium':
+        modulos.modulo_pedidos = 1;
+        modulos.modulo_reservas = 1;
+        modulos.modulo_recordatorios = 1;
+        modulos.modulo_analiticas = 1;
+        modulos.modulo_pagos = 1;
+        break;
+      default:
+        return res.status(400).json({ error: 'Plan inválido' });
+    }
+
+    // Actualizar el plan y los módulos
+    await client.query(
+      `UPDATE negocios SET plan = $1, modulo_pedidos = $2, modulo_reservas = $3, modulo_recordatorios = $4, modulo_analiticas = $5, modulo_pagos = $6 WHERE id = $7`,
+      [plan, modulos.modulo_pedidos, modulos.modulo_reservas, modulos.modulo_recordatorios, modulos.modulo_analiticas, modulos.modulo_pagos, id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error al actualizar plan:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (client) client.release();
+  }
+});
+
 // Helper function to get ISO week number
 function getWeekNumber(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));

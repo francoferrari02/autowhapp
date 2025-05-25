@@ -93,7 +93,7 @@ AutoWhapp es un proyecto que implementa un chatbot automatizado para WhatsApp, c
    yarn start
    ```
 
-   - El puerto 3000 va a estar en uso por el backend, predeterminadamente deberia sugerir correr en el 3001, es donde debe correr.
+   - El puerto 3000 va a estar en uso por el backend, predeterminadamente debería sugerir correr en el 3001, es donde debe correr.
 
 ## Notas
 
@@ -111,3 +111,90 @@ AutoWhapp es un proyecto que implementa un chatbot automatizado para WhatsApp, c
   ```
 
 - Selecciona las pruebas que deseas ejecutar.
+
+## Ejecución con Docker Compose
+
+El proyecto ahora está configurado para ejecutarse usando Docker Compose, lo que permite iniciar todos los servicios (backend, frontend, base de datos y n8n) con un solo comando. Sigue estos pasos para ejecutarlo:
+
+### Requisitos
+
+- **Docker**: Asegúrate de tener Docker instalado y en ejecución en tu máquina.
+- **Docker Compose**: Verifica que Docker Compose esté disponible (generalmente viene incluido con Docker Desktop).
+
+### Pasos para Ejecutar
+
+1. **Navega al directorio del backend**:
+
+   ```bash
+   cd autowhapp-backend
+   ```
+
+2. **Construye e inicia los servicios**:
+
+   ```bash
+   docker-compose up --build -d
+   ```
+
+   - `--build`: Fuerza la reconstrucción de las imágenes si es necesario.
+   - `-d`: Ejecuta los contenedores en segundo plano.
+
+   Este comando construirá las imágenes del backend (`app`), frontend (`frontend`), base de datos (`db`), y n8n, y luego los iniciará. La base de datos PostgreSQL se iniciará en el puerto `5434` de tu máquina local.
+
+3. **Verifica los servicios**:
+
+   - **Backend**: Corre en `http://localhost:3000`.
+   - **Frontend**: Corre en `http://localhost:3001`.
+   - **n8n**: Accesible en `http://localhost:5678`.
+   - **Base de datos**: Accesible en `localhost:5434` (ver más abajo).
+
+4. **Detener los servicios**:
+
+   Cuando hayas terminado, puedes detener todos los servicios y eliminar los volúmenes con:
+
+   ```bash
+   docker-compose down -v
+   ```
+
+   - `-v`: Elimina los volúmenes, incluyendo la base de datos, lo que borrará todos los datos almacenados.
+
+### Acceso a la Base de Datos
+
+La base de datos PostgreSQL se ejecuta dentro de un contenedor y está mapeada al puerto `5434` en tu máquina local (no al puerto predeterminado `5432`). Para conectarte a ella, usa las siguientes credenciales:
+
+- **Host**: `localhost`
+- **Puerto**: `5434`
+- **Usuario**: `autowhapp_user`
+- **Contraseña**: `Autowhapp123`
+- **Base de datos**: `autowhapp`
+
+#### Conexión con `psql`
+
+Para conectarte a la base de datos usando `psql`, ejecuta:
+
+```bash
+psql -h localhost -p 5434 -U autowhapp_user -d autowhapp
+```
+
+Luego, podrás ejecutar consultas SQL, como:
+
+```sql
+SELECT * FROM negocios;
+```
+
+**Nota**: Si tienes una instancia local de PostgreSQL corriendo en `localhost:5432`, asegúrate de especificar el puerto `5434` para conectarte a la base de datos del contenedor.
+
+#### Ver Logs de la Base de Datos
+
+Si necesitas ver los logs de la base de datos para depurar, ejecuta:
+
+```bash
+docker-compose logs db
+```
+
+### Notas Adicionales
+
+- **Volúmenes**: Los datos de la base de datos se almacenan en un volumen Docker (`postgres_data`), que persiste entre ejecuciones a menos que uses `docker-compose down -v`.
+- **Reconstrucción**: Si realizas cambios en el código, puedes reconstruir las imágenes con `docker-compose up --build -d`.
+- **Acceso a n8n**: Asegúrate de configurar correctamente los flujos de trabajo en `http://localhost:5678`, usando la URL de Ngrok si es necesario.
+
+Esta configuración dockerizada simplifica la ejecución del proyecto, asegurando que todos los servicios se inicien correctamente y que la base de datos sea accesible de manera consistente.
