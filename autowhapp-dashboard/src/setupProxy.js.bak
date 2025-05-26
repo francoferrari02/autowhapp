@@ -5,7 +5,7 @@ module.exports = function (app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:3000', // Puerto donde corre tu backend
+      target: 'autowhapp.railway.internal', // Puerto donde corre tu backend
       changeOrigin: true,
       onProxyReq: (proxyReq, req, res) => {
         console.log(`Proxy: Enviando solicitud ${req.method} ${req.url} al backend`); // Log para cada solicitud
