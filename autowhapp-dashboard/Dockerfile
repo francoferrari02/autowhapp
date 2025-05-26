@@ -1,5 +1,6 @@
-# Build stage
-FROM node:20-alpine
+# Use the Node alpine official image
+# https://hub.docker.com/_/node
+FROM node:lts-alpine AS build
 
 WORKDIR /app
 
