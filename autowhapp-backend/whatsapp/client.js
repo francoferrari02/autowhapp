@@ -266,14 +266,19 @@ function initializeClientForNegocio(negocio) {
       direccion: negocioDb.direccion,
       horarios: negocioDb.horarios,
       contexto: negocioDb.contexto,
-      plan: negocioDb.plan,
       estado_bot: Number(negocioDb.estado_bot) === 1,
       modulo_pedidos: Number(negocioDb.modulo_pedidos) === 1,
       modulo_reservas: Number(negocioDb.modulo_reservas) === 1,
+      modulo_recordatorios: Number(negocioDb.modulo_recordatorios) === 1, // Campo añadido
+      modulo_analiticas: Number(negocioDb.modulo_analiticas) === 1,      // Campo añadido
+      modulo_pagos: Number(negocioDb.modulo_pagos) === 1,                // Campo añadido
+      plan: negocioDb.plan || 'SinPlan',                         // Campo añadido
       appointment_duration: Number(negocioDb.appointment_duration),
       break_between: Number(negocioDb.break_between),
       hora_inicio_default: negocioDb.hora_inicio_default,
       hora_fin_default: negocioDb.hora_fin_default,
+      created_at: negocioDb.created_at,                                 // Campo añadido
+      updated_at: negocioDb.updated_at,                                 // Campo añadido
       faqs,
       productos,
       reservas,
@@ -281,6 +286,7 @@ function initializeClientForNegocio(negocio) {
       productos_texto: productosTexto,
       slotsPorDia
     };
+    
 
     let numeroCliente = chat.isGroup ? msg.author : msg.from;
     if (numeroCliente.startsWith('549')) {
@@ -460,16 +466,21 @@ async function identificarNegocioPorId(negocioId) {
       tipo_negocio: negocio.tipo_negocio,
       localidad: negocio.localidad,
       direccion: negocio.direccion,
-      // Fix JSON parsing - check if it's already an object or string
       horarios: typeof negocio.horarios === 'string' ? JSON.parse(negocio.horarios) : negocio.horarios || {},
       contexto: negocio.contexto || '',
       estado_bot: Number(negocio.estado_bot) === 1,
       modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
       modulo_reservas: Number(negocio.modulo_reservas) === 1,
+      modulo_recordatorios: Number(negocio.modulo_recordatorios) === 1, // Campo añadido
+      modulo_analiticas: Number(negocio.modulo_analiticas) === 1,    // Campo añadido
+      modulo_pagos: Number(negocio.modulo_pagos) === 1,             // Campo añadido
+      plan: negocio.plan || 'SinPlan',                       // Campo añadido
       appointment_duration: Number(negocio.appointment_duration) || 60,
       break_between: Number(negocio.break_between) || 15,
       hora_inicio_default: negocio.hora_inicio_default || '09:00',
       hora_fin_default: negocio.hora_fin_default || '18:00',
+      created_at: negocio.created_at,                               // Campo añadido
+      updated_at: negocio.updated_at                                // Campo añadido
     };
   } catch (err) {
     console.error('Error al buscar negocio por ID:', err.message);

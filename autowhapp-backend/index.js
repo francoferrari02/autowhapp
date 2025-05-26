@@ -1428,6 +1428,13 @@ app.get('/api/ventasPorSemana/:negocioId', checkJwt, (req, res) => {
 
 //actualiza el plan del negocio
 app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
+  console.log('Solicitud PUT recibida para /api/negocio/:id/plan', {
+    params: req.params,
+    body: req.body,
+    method: req.method,
+    headers: req.headers
+  });
+
   const { id } = req.params;
   const { plan } = req.body;
   const auth0Id = req.auth.sub;
@@ -1439,18 +1446,18 @@ app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
   let client;
   try {
     client = await db.connect();
+    console.log('Conexión a la base de datos establecida');
 
-    // Verificar que el negocio pertenece al usuario
     const userResult = await client.query(
       'SELECT n.id FROM negocios n JOIN users u ON n.user_id = u.id WHERE n.id = $1 AND u.auth0_id = $2',
       [id, auth0Id]
     );
+    console.log('Resultado de verificación de usuario:', userResult.rows);
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'Negocio no encontrado o no autorizado' });
     }
 
-    // Definir los módulos según el plan
     let modulos = {
       modulo_pedidos: 0,
       modulo_reservas: 0,
@@ -1489,7 +1496,7 @@ app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
         return res.status(400).json({ error: 'Plan inválido' });
     }
 
-    // Actualizar el plan y los módulos
+    console.log('Actualizando plan y módulos para negocio ID:', id, 'con plan:', plan, 'módulos:', modulos);
     await client.query(
       `UPDATE negocios SET plan = $1, modulo_pedidos = $2, modulo_reservas = $3, modulo_recordatorios = $4, modulo_analiticas = $5, modulo_pagos = $6 WHERE id = $7`,
       [plan, modulos.modulo_pedidos, modulos.modulo_reservas, modulos.modulo_recordatorios, modulos.modulo_analiticas, modulos.modulo_pagos, id]
@@ -1497,10 +1504,11 @@ app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('Error al actualizar plan:', err.message);
+    console.error('Error al actualizar plan:', err.message, err.stack);
     res.status(500).json({ error: err.message });
   } finally {
     if (client) client.release();
+    console.log('Conexión a la base de datos liberada');
   }
 });
 
