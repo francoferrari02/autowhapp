@@ -13,29 +13,26 @@ RUN yarn install --frozen-lockfile
 # Copy the rest of the application
 COPY . .
 
-
 # Build the application
 RUN CI=false yarn build
 
-# # Use the Caddy image
+# Use the Caddy image
 FROM caddy
 
-
-# # Create and change to the app directory.
+# Create and change to the app directory.
 WORKDIR /app
 
-# # Copy Caddyfile to the container image.
+# Copy Caddyfile to the container image.
 COPY Caddyfile ./
 
-# # Copy local code to the container image.
+# Copy local code to the container image.
 RUN caddy fmt Caddyfile --overwrite
 
-# # Copy files to the container image.
-COPY --from=build /app/dist ./dist
+# Copy files to the container image.
+COPY --from=build /app/build ./dist
 
-# # Use Caddy to run/serve the app
+# Use Caddy to run/serve the app
 CMD ["caddy", "run", "--config", "Caddyfile", "--adapter", "caddyfile"]
-
 
 # Install serve to run the production build
 # RUN yarn global add serve
