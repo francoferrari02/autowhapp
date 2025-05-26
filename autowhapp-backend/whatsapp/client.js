@@ -521,7 +521,7 @@ function detectarPedido(respuesta) {
 }
 
 async function handleReserva(reservaData, token) {
-  const backendUrl = `http://localhost:3000/api/reservas/${reservaData.negocioId}`;
+  const backendUrl = `${process.env.REACT_APP_API_URL}/api/reservas/${reservaData.negocioId}`;
   try {
     const backendRes = await axios.post(backendUrl, {
       fecha: reservaData.fecha,

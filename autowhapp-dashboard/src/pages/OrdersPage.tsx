@@ -19,7 +19,7 @@ const OrdersPage: React.FC = () => {
               audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
           });
-          const res = await axios.get<{ modulo_pedidos: boolean }>(`http://localhost:3000/api/negocio/${negocioId}`, {
+          const res = await axios.get<{ modulo_pedidos: boolean }>(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           setModuloPedidos(!!res.data.modulo_pedidos);
@@ -40,7 +40,7 @@ const OrdersPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.post('http://localhost:3000/api/actualizar-modulo-pedidos', { negocioId, moduloPedidos: nuevoEstado }, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/actualizar-modulo-pedidos`, { negocioId, moduloPedidos: nuevoEstado }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setModuloPedidos(nuevoEstado);

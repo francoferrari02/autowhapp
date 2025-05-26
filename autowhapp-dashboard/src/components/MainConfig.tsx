@@ -97,7 +97,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
           }
         });
-        const businessRes = await axios.get(`http://localhost:3000/api/negocio/${negocioId}`, {
+        const businessRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = businessRes.data as any;
@@ -134,7 +134,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
           }
         });
-        const faqsRes = await axios.get(`http://localhost:3000/api/faqs/${negocioId}`, {
+        const faqsRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/faqs/${negocioId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setFaqs((faqsRes.data as any[]).map((f: any) => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
@@ -202,11 +202,11 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         }
       });
       if (toDelete.id) {
-        await axios.delete(`http://localhost:3000/api/faqs/${toDelete.id}`, {
+        await axios.delete(`${process.env.REACT_APP_API_URL}/api/faqs/${toDelete.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
-      const res = await axios.get(`http://localhost:3000/api/faqs/${negocioId}`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faqs/${negocioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFaqs((res.data as any[]).map((f: any) => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
@@ -232,7 +232,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         horarios: JSON.stringify(business.hours),
         contexto: context,
       };
-      await axios.put(`http://localhost:3000/api/negocio/${negocioId}`, updatedBusiness, {
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, updatedBusiness, {
         headers: { Authorization: `Bearer ${token}` }
       });
       for (const faq of faqs) {
@@ -241,7 +241,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           return;
         }
         if (!faq.id) {
-          const response = await axios.post<CreateFaqResponse>('http://localhost:3000/api/faqs', {
+          const response = await axios.post<CreateFaqResponse>('${process.env.REACT_APP_API_URL}/api/faqs', {
             negocioId,
             pregunta: faq.question.trim(),
             respuesta: faq.answer.trim(),
@@ -250,7 +250,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           });
           faq.id = response.data.id;
         } else {
-          await axios.put(`http://localhost:3000/api/faqs/${faq.id}`, {
+          await axios.put(`${process.env.REACT_APP_API_URL}/api/faqs/${faq.id}`, {
             pregunta: faq.question.trim(),
             respuesta: faq.answer.trim(),
           }, {
@@ -258,7 +258,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           });
         }
       }
-      const res = await axios.get(`http://localhost:3000/api/faqs/${negocioId}`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faqs/${negocioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFaqs((res.data as any[]).map((f: any) => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));

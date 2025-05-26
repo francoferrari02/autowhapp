@@ -77,10 +77,10 @@ const Header: React.FC = () => {
       console.error('Error al cambiar plan:', error);
     }
   };
-
+  
   const fetchQrs = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/api/qrs');
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/qrs`);
       setQrs(response.data as any[]);
     } catch (error) {
       console.error('Error al obtener QRs:', error);

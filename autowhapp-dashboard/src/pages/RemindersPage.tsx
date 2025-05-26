@@ -66,7 +66,7 @@ const RemindersPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
           }
         });
-        const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`, {
+        const res = await axios.get<NegocioResponse>(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setModuloRecordatorios(!!res.data.modulo_recordatorios);
@@ -91,7 +91,7 @@ const RemindersPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.post<{ success: boolean; id: number }>(`http://localhost:3000/api/recordatorios/${negocioId}`, {
+      const res = await axios.post<{ success: boolean; id: number }>(`${process.env.REACT_APP_API_URL}/api/recordatorios/${negocioId}`, {
         message,
         frequency,
         time,
@@ -166,7 +166,7 @@ const RemindersPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.post('http://localhost:3000/api/actualizar-modulo-recordatorios', {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/actualizar-modulo-recordatorios`, {
         negocioId,
         moduloRecordatorios: nuevoEstado,
       }, {
@@ -190,7 +190,7 @@ const RemindersPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.put<{ success: boolean }>(`http://localhost:3000/api/recordatorios/${id}/activo`, {
+      const res = await axios.put<{ success: boolean }>(`${process.env.REACT_APP_API_URL}/api/recordatorios/${id}/activo`, {
         activo: reminder.activo ? 0 : 1,
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -214,7 +214,7 @@ const RemindersPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.delete<{ success: boolean }>(`http://localhost:3000/api/recordatorios/${id}`, {
+      const res = await axios.delete<{ success: boolean }>(`${process.env.REACT_APP_API_URL}/api/recordatorios/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {
@@ -239,7 +239,7 @@ const RemindersPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.put<{ success: boolean }>(`http://localhost:3000/api/recordatorios/${editReminder.id}`, {
+      const res = await axios.put<{ success: boolean }>(`${process.env.REACT_APP_API_URL}/api/recordatorios/${editReminder.id}`, {
         message: editReminder.message,
         frequency: editReminder.frequency,
         time: editReminder.time,

@@ -59,7 +59,7 @@ const ReservationsPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`, {
+      const res = await axios.get<NegocioResponse>(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const fetchedReservas = res.data.reservas
@@ -101,7 +101,7 @@ const ReservationsPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
           }
         });
-        const res = await axios.get<NegocioResponse>(`http://localhost:3000/api/negocio/${negocioId}`, {
+        const res = await axios.get<NegocioResponse>(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setModuloReservas(!!res.data.modulo_reservas);
@@ -173,7 +173,7 @@ const ReservationsPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.post('http://localhost:3000/api/actualizar-modulo-reservas', { negocioId, moduloReservas: nuevoEstado }, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/actualizar-modulo-reservas`, { negocioId, moduloReservas: nuevoEstado }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setModuloReservas(nuevoEstado);
@@ -199,7 +199,7 @@ const ReservationsPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.post(`http://localhost:3000/api/reservas/${negocioId}`, {
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}`, {
         fecha: newReservation.fecha,
         hora_inicio: newReservation.hora_inicio,
         hora_fin: newReservation.hora_fin,
@@ -256,7 +256,7 @@ const ReservationsPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.delete(`http://localhost:3000/api/reservas/${negocioId}/${selectedEvent.id}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}/${selectedEvent.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setReservas((prev) => prev.filter((res) => res.id !== selectedEvent.id));
@@ -289,7 +289,7 @@ const ReservationsPage: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.put(`http://localhost:3000/api/reservas/${negocioId}`, {
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}`, {
         appointmentDuration,
         breakBetween,
         hora_inicio_default: horaInicioDefault,
