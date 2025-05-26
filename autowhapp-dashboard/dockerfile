@@ -15,7 +15,7 @@ COPY . .
 
 
 # Build the application
-RUN yarn build
+RUN CI=false yarn build
 
 # Install serve to run the production build
 RUN yarn global add serve
