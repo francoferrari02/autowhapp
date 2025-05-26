@@ -266,6 +266,7 @@ function initializeClientForNegocio(negocio) {
       direccion: negocioDb.direccion,
       horarios: negocioDb.horarios,
       contexto: negocioDb.contexto,
+      plan: negocioDb.plan,
       estado_bot: Number(negocioDb.estado_bot) === 1,
       modulo_pedidos: Number(negocioDb.modulo_pedidos) === 1,
       modulo_reservas: Number(negocioDb.modulo_reservas) === 1,
@@ -294,6 +295,7 @@ function initializeClientForNegocio(negocio) {
       mensaje: msg.body,
       numeroCliente,
       negocio: negocioActualizado,
+      plan: negocioActualizado.plan,
       fechaActual: new Date().toISOString().split('T')[0]
     };
 

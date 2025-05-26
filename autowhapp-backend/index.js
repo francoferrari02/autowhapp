@@ -842,7 +842,7 @@ app.post('/api/actualizar-modulo-recordatorios', checkJwt, (req, res) => {
 app.post('/api/negocios', checkJwt, async (req, res) => {
   let client;
   try {
-    const { nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto } = req.body;
+    const { nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, plan } = req.body;
     
     if (!nombre || !numero_telefono || !tipo_negocio || !localidad || !direccion) {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
@@ -865,10 +865,10 @@ app.post('/api/negocios', checkJwt, async (req, res) => {
 
     // Insertar el negocio
     const result = await client.query(
-      `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id`,
-      [nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, userId]
+      `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, user_id, plan)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id`,
+      [nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, userId, plan]
     );
 
     await initializeClients();

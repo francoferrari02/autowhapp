@@ -1,0 +1,2 @@
+{"__type":"$$EventMessageAudit","id":"6c3b69c8-efb4-434d-a3e3-9716489831f9","ts":"2025-05-26T10:52:46.819-03:00","eventName":"n8n.audit.workflow.updated","message":"n8n.audit.workflow.updated","payload":{"userId":"50ecd661-bf68-4edd-9638-827720050128","_email":"frferrari@itba.edu.ar","_firstName":"Franco","_lastName":"Ferrari","globalRole":"global:owner","workflowId":"KhgtwniJDpDOSLuJ","workflowName":"Bot Whatsapp"}}
+{"__type":"$$EventMessageConfirm","confirm":"6c3b69c8-efb4-434d-a3e3-9716489831f9","ts":"2025-05-26T10:52:46.820-03:00","source":{"id":"0","name":"eventBus"}}
