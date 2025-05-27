@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
   CalendarIcon,
   BellIcon,
+  CreditCardIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { id: 'analytics' as const, label: 'Analíticas', icon: ChartBarIcon, path: '/analytics' },
   { id: 'reservations' as const, label: 'Reservas', icon: CalendarIcon, path: '/reservations' },
   { id: 'reminders' as const, label: 'Recordatorios', icon: BellIcon, path: '/reminders' },
+  { id: 'payments' as const, label: 'Pagos', icon: CreditCardIcon, path: '/payments' },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ selected }) => {

@@ -67,16 +67,28 @@ const Header: React.FC = () => {
     logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
-  const handlePlanSelect = async (plan: string) => {
-    if (!negocioId) return;
-    try {
-      await axios.put(`/api/negocio/${negocioId}/plan`, { plan });
-      await refreshNegocios(); // Refrescar negocios para reflejar los cambios
-      handlePlanMenuClose();
-    } catch (error) {
-      console.error('Error al cambiar plan:', error);
-    }
-  };
+  const { getAccessTokenSilently } = useAuth0(); // Asegúrate de importar useAuth0
+
+const handlePlanSelect = async (plan: string) => {
+  console.log('Intentando cambiar plan:', { negocioId, plan });
+  if (!negocioId) return;
+  try {
+    const token = await getAccessTokenSilently({
+      authorizationParams: {
+        audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+      }
+    });
+    await axios.put(`http://localhost:3000/api/negocio/${negocioId}/plan`, { plan }, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    await refreshNegocios();
+    handlePlanMenuClose();
+  } catch (error) {
+    console.error('Error al cambiar plan:', error);
+  }
+};
 
   const fetchQrs = async () => {
     try {

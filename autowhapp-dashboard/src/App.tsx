@@ -12,6 +12,7 @@ import RemindersPage from './pages/RemindersPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import LoginPage from './pages/LoginPage';
 import PricingPage from './pages/PricingPage';
+import PaymentsPage from './pages/Payments';
 
 const LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -142,6 +143,10 @@ const AppContent: React.FC = () => {
                   <ConfigPage />
                 </ProtectedRoute>
               }
+            />
+            <Route
+              path="/payments"
+              element={<PaymentsPage />}
             />
             <Route path="*" element={<div>404 - Página no encontrada</div>} />
           </Routes>
