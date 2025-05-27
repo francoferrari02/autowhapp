@@ -565,27 +565,81 @@ app.post('/api/reservas/:negocioId', checkJwt, (req, res) => {
   });
 });
 
-app.get('/api/cantReservas/:negocioId', checkJwt, (req, res) => {
+
+
+app.get('/api/cantReservas/:negocioId', checkJwt, asyncHandler(async (req, res) => {
+  try {
     const { negocioId } = req.params;
     const { year, month } = req.query;
-
     console.log(`Solicitud GET /api/cantReservas/${negocioId})`);
-
-    if (!negocioId) {
-        return res.status(400).json({ error: 'negocioId es requerido' });
+    // Si falta algún parámetro, devuelve 0
+    if (!negocioId || !year || !month) {
+      return res.json({ count: 0 });
     }
 
-    db.query(
-        'SELECT count(*) as count FROM reservas WHERE negocio_id = $1',
-        [negocioId],
-        (err, row) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ count: row.rows[0].count });
-        }
-    );
-});
+    // Si no hay autenticación, devuelve 0
+    if (!req.auth || !req.auth.sub) {
+      return res.json({ count: 0 });
+    }
+
+    const auth0Id = req.auth.sub;
+    let client;
+
+    try {
+      client = await db.connect();
+
+      // Busca el usuario
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE auth0_id = $1',
+        [auth0Id]
+      );
+
+      // Si no existe el usuario, devuelve 10
+      if (userResult.rows.length === 0) {
+        return res.json({ count: 10 });
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Verifica si el negocio pertenece al usuario
+      const negocioResult = await client.query(
+        'SELECT id FROM negocios WHERE id = $1 AND user_id = $2',
+        [negocioId, userId]
+      );
+
+      // Si el negocio no pertenece al usuario, devuelve 0
+      if (negocioResult.rows.length === 0) {
+        return res.json({ count: 0 });
+      }
+
+      // Cuenta las ventas
+      const reservasResult = await client.query(
+        `SELECT COUNT(*) as count 
+         FROM reservas 
+         WHERE negocio_id = $1 `,
+        [negocioId]
+         
+      );
+
+      const count = parseInt(reservasResult.rows[0].count, 10);
+      return res.json({ count });
+
+    } catch (dbError) {
+      // Si hay error en la base de datos, devuelve -1
+      console.error('Error en la base de datos:', dbError);
+      if(client){
+        return res.json({ count: -400 });
+      }
+      return res.json({ count: -300 });
+    } finally {
+      if (client) client.release();
+    }
+  } catch (err) {
+    // Si hay cualquier otro error, devuelve -2
+    console.error('Error inesperado:', err);
+    return res.json({ count: -2 });
+  }
+}));
 
 // Endpoint para cancelar reservas
 app.delete('/api/reservas/:negocioId/:reservaId', checkJwt, (req, res) => {
@@ -1256,6 +1310,250 @@ app.post('/api/pedidos/:negocioId', checkJwt, (req, res) => {
   );
 });
 
+app.get('/api/ingresos/:negocioId', checkJwt, asyncHandler(async (req, res) => {
+  try {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+    console.log("Solicitud GET /api/ingresos/${negocioId} con year: ${year}, month: ${month}");
+    // Si falta algún parámetro, devuelve 0
+    if (!negocioId || !year || !month) {
+      return res.json({ count: 0 });
+    }
+
+    // Si no hay autenticación, devuelve 0
+    if (!req.auth || !req.auth.sub) {
+      return res.json({ count: 0 });
+    }
+
+    const auth0Id = req.auth.sub;
+    let client;
+
+    try {
+      client = await db.connect();
+
+      // Busca el usuario
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE auth0_id = $1',
+        [auth0Id]
+      );
+
+      // Si no existe el usuario, devuelve 10
+      if (userResult.rows.length === 0) {
+        return res.json({ count: 10 });
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Verifica si el negocio pertenece al usuario
+      const negocioResult = await client.query(
+        'SELECT id FROM negocios WHERE id = $1 AND user_id = $2',
+        [negocioId, userId]
+      );
+
+      // Si el negocio no pertenece al usuario, devuelve 0
+      if (negocioResult.rows.length === 0) {
+        return res.json({ count: 0 });
+      }
+
+      // Cuenta las ventas
+      const ventasResult = await client.query(
+        `select coalesce(sum(precio), 0) as count from pedidos 
+        join productos on pedidos.items = productos.nombre 
+        where pedidos.negocio_id = $1 and productos.negocio_id = $1`,
+        [negocioId]
+         
+      );
+
+      const count = parseInt(ventasResult.rows[0].count, 10);
+      return res.json({ count });
+
+    } catch (dbError) {
+      // Si hay error en la base de datos, devuelve -1
+      console.error('Error en la base de datos:', dbError);
+      if(client){
+        return res.json({ count: -400 });
+      }
+      return res.json({ count: -300 });
+    } finally {
+      if (client) client.release();
+    }
+  } catch (err) {
+    // Si hay cualquier otro error, devuelve -2
+    console.error('Error inesperado:', err);
+    return res.json({ count: -2 });
+  }
+}));
+
+
+app.get('/api/masVendido/:negocioId', checkJwt, asyncHandler(async (req, res) => {
+  try {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+    console.log("Solicitud GET /api/masVendido/${negocioId} con year: ${year}, month: ${month}");
+    // Si falta algún parámetro, devuelve 0
+    if (!negocioId || !year || !month) {
+      return res.json({ count: "0" });
+    }
+
+    // Si no hay autenticación, devuelve 0
+    if (!req.auth || !req.auth.sub) {
+      return res.json({ count: "0" });
+    }
+
+    const auth0Id = req.auth.sub;
+    let client;
+
+    try {
+      client = await db.connect();
+
+      // Busca el usuario
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE auth0_id = $1',
+        [auth0Id]
+      );
+
+      // Si no existe el usuario, devuelve 10
+      if (userResult.rows.length === 0) {
+        return res.json({ count: "-33" });
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Verifica si el negocio pertenece al usuario
+      const negocioResult = await client.query(
+        'SELECT id FROM negocios WHERE id = $1 AND user_id = $2',
+        [negocioId, userId]
+      );
+
+      // Si el negocio no pertenece al usuario, devuelve 0
+      if (negocioResult.rows.length === 0) {
+        return res.json({ count: "-5" });
+      }
+
+      // Cuenta las ventas
+      const ventasResult = await client.query(
+        `WITH conteos AS (
+        SELECT productos.nombre, COALESCE(COUNT(pedidos.items), 0) AS count
+        FROM productos
+        LEFT JOIN pedidos ON pedidos.items = productos.nombre 
+            AND pedidos.negocio_id = $1
+        WHERE productos.negocio_id = $1
+        GROUP BY productos.nombre
+        )
+        SELECT nombre, count
+        FROM conteos
+        WHERE count = (SELECT MAX(count) FROM conteos);`,
+        [negocioId]
+         
+      );
+      if(ventasResult.rows.length === 0) {
+        return res.json({ count: "not available" });
+      }
+      const co = (ventasResult.rows[0].nombre);
+      return res.json({ count: co });
+
+    } catch (dbError) {
+      // Si hay error en la base de datos, devuelve -1
+      console.error('Error en la base de datos:', dbError);
+      if(client){
+        return res.json({ count: "111"});
+      }
+      return res.json({ count: "-300" });
+    } finally {
+      if (client) client.release();
+    }
+  } catch (err) {
+    // Si hay cualquier otro error, devuelve -2
+    console.error('Error inesperado:', err);
+    return res.json({ count: "-2" });
+  }
+}));
+
+
+app.get('/api/menosVendido/:negocioId', checkJwt, asyncHandler(async (req, res) => {
+  try {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+    console.log("Solicitud GET /api/menosVendido/${negocioId} con year: ${year}, month: ${month}");
+    // Si falta algún parámetro, devuelve 0
+    if (!negocioId || !year || !month) {
+      return res.json({ count: "0" });
+    }
+
+    // Si no hay autenticación, devuelve 0
+    if (!req.auth || !req.auth.sub) {
+      return res.json({ count: "0" });
+    }
+
+    const auth0Id = req.auth.sub;
+    let client;
+
+    try {
+      client = await db.connect();
+
+      // Busca el usuario
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE auth0_id = $1',
+        [auth0Id]
+      );
+
+      // Si no existe el usuario, devuelve 10
+      if (userResult.rows.length === 0) {
+        return res.json({ count: "-33" });
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Verifica si el negocio pertenece al usuario
+      const negocioResult = await client.query(
+        'SELECT id FROM negocios WHERE id = $1 AND user_id = $2',
+        [negocioId, userId]
+      );
+
+      // Si el negocio no pertenece al usuario, devuelve 0
+      if (negocioResult.rows.length === 0) {
+        return res.json({ count: "-5" });
+      }
+
+      // Cuenta las ventas
+      const ventasResult = await client.query(
+        `WITH conteos AS (
+        SELECT productos.nombre, COALESCE(COUNT(pedidos.items), 0) AS count
+        FROM productos
+        LEFT JOIN pedidos ON pedidos.items = productos.nombre 
+            AND pedidos.negocio_id = $1
+        WHERE productos.negocio_id = $1
+        GROUP BY productos.nombre
+        )
+        SELECT nombre, count
+        FROM conteos
+        WHERE count = (SELECT MIN(count) FROM conteos);`,
+        [negocioId]
+         
+      );
+      if(ventasResult.rows.length === 0) {
+        return res.json({ count: "not available" });
+      }
+      const co = (ventasResult.rows[0].nombre);
+      return res.json({ count: co });
+
+    } catch (dbError) {
+      // Si hay error en la base de datos, devuelve -1
+      console.error('Error en la base de datos:', dbError);
+      if(client){
+        return res.json({ count: "111"});
+      }
+      return res.json({ count: "-300" });
+    } finally {
+      if (client) client.release();
+    }
+  } catch (err) {
+    // Si hay cualquier otro error, devuelve -2
+    console.error('Error inesperado:', err);
+    return res.json({ count: "-2" });
+  }
+}));
+/*
 app.get('/api/ingresos/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
@@ -1317,8 +1615,84 @@ app.get('/api/ingresos/:negocioId', checkJwt, (req, res) => {
         }
     );
 });
+*/
+app.get('/api/cantVentas/:negocioId', checkJwt, asyncHandler(async (req, res) => {
+  try {
+    const { negocioId } = req.params;
+    const { year, month } = req.query;
+    console.log("Solicitud GET /api/cantVentas/${negocioId} con year: ${year}, month: ${month}");
+    // Si falta algún parámetro, devuelve 0
+    if (!negocioId || !year || !month) {
+      return res.json({ count: 0 });
+    }
 
-app.get('/api/cantVentas/:negocioId', checkJwt, (req, res) => {
+    // Si no hay autenticación, devuelve 0
+    if (!req.auth || !req.auth.sub) {
+      return res.json({ count: 0 });
+    }
+
+    const auth0Id = req.auth.sub;
+    let client;
+
+    try {
+      client = await db.connect();
+
+      // Busca el usuario
+      const userResult = await client.query(
+        'SELECT id FROM users WHERE auth0_id = $1',
+        [auth0Id]
+      );
+
+      // Si no existe el usuario, devuelve 10
+      if (userResult.rows.length === 0) {
+        return res.json({ count: 10 });
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Verifica si el negocio pertenece al usuario
+      const negocioResult = await client.query(
+        'SELECT id FROM negocios WHERE id = $1 AND user_id = $2',
+        [negocioId, userId]
+      );
+
+      // Si el negocio no pertenece al usuario, devuelve 0
+      if (negocioResult.rows.length === 0) {
+        return res.json({ count: 0 });
+      }
+
+      // Cuenta las ventas
+      const ventasResult = await client.query(
+        `SELECT COUNT(*) as count 
+         FROM pedidos 
+         WHERE negocio_id = $1 
+         AND EXTRACT(YEAR FROM created_at) = $2
+         AND EXTRACT(MONTH FROM created_at) = $3`,
+        [negocioId, year, month]
+         
+      );
+
+      const count = parseInt(ventasResult.rows[0].count, 10);
+      return res.json({ count });
+
+    } catch (dbError) {
+      // Si hay error en la base de datos, devuelve -1
+      console.error('Error en la base de datos:', dbError);
+      if(client){
+        return res.json({ count: -400 });
+      }
+      return res.json({ count: -300 });
+    } finally {
+      if (client) client.release();
+    }
+  } catch (err) {
+    // Si hay cualquier otro error, devuelve -2
+    console.error('Error inesperado:', err);
+    return res.json({ count: -2 });
+  }
+}));
+
+/*app.get('/api/cantVentas/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
     const { year, month } = req.query;
     console.log(`Solicitud GET /api/cantVentas/${negocioId})`);
@@ -1336,7 +1710,7 @@ app.get('/api/cantVentas/:negocioId', checkJwt, (req, res) => {
             res.json({ count: row.rows[0].count });
         }
     );
-});
+});*/
 
 app.get('/api/productosVendidos/:negocioId', checkJwt, (req, res) => {
     const { negocioId } = req.params;
