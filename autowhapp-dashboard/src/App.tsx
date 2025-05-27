@@ -13,6 +13,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import LoginPage from './pages/LoginPage';
 import PricingPage from './pages/PricingPage';
 import PaymentsPage from './pages/Payments';
+import MockAnalyticsPage from './pages/MockAnalyticsPage';
 
 const LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -132,7 +133,7 @@ const AppContent: React.FC = () => {
               path="/analytics"
               element={
                 <ProtectedRoute>
-                  <AnalyticsPage />
+                  <MockAnalyticsPage />
                 </ProtectedRoute>
               }
             />
