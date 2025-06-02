@@ -520,7 +520,7 @@ function detectarPedido(respuesta) {
   return null;
 }
 
-async function handleReserva(reservaData, token) {
+async function handleReserva(reservaData, token, client) {
   const backendUrl = `${process.env.REACT_APP_API_URL}/api/reservas/${reservaData.negocioId}`;
   try {
     const backendRes = await axios.post(backendUrl, {
@@ -532,9 +532,7 @@ async function handleReserva(reservaData, token) {
       telefono: reservaData.numeroCliente,
       descripcion: 'Reserva confirmada por bot'
     }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     });
 
     console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
@@ -542,19 +540,19 @@ async function handleReserva(reservaData, token) {
       let confirmMessage = "¡Tu reserva ha sido confirmada con éxito!\nDetalle de la reserva:\n";
       confirmMessage += `- Fecha: ${reservaData.fecha}\n`;
       confirmMessage += `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
-      await client.sendMessage(msg.from, confirmMessage);
+      await client.sendMessage(reservaData.numeroCliente, confirmMessage);
       console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
     } else {
       console.error('❌ Registro de reserva falló en el backend:', backendRes.data);
-      await client.sendMessage(msg.from, 'Error al confirmar la reserva, intentá de nuevo.');
+      await client.sendMessage(reservaData.numeroCliente, 'Error al confirmar la reserva, intentá de nuevo.');
     }
   } catch (backendErr) {
     console.error('❌ Error al registrar reserva en el backend:', backendErr.message);
-    await client.sendMessage(msg.from, 'Error al confirmar la reserva, intentá de nuevo.');
+    await client.sendMessage(reservaData.numeroCliente, 'Error al confirmar la reserva, intentá de nuevo.');
   }
 }
 
-async function handlePedido(pedidoData, token) {
+async function handlePedido(pedidoData, token, client) {
   const backendUrl = `http://localhost:3000/api/pedidos/${pedidoData.negocioId}`;
   try {
     const backendRes = await axios.post(backendUrl, {
@@ -562,28 +560,34 @@ async function handlePedido(pedidoData, token) {
       items: pedidoData.items,
       estado: 'recibido',
     }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     });
 
     console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
     if (backendRes.status === 200 && backendRes.data.success) {
+      let total = pedidoData.items.reduce((sum, item) => sum + item.cantidad, 0); // Calcular total simple
       let confirmMessage = "¡Tu pedido ha sido registrado con éxito!\nDetalle del pedido:\n";
       pedidoData.items.forEach(item => {
         confirmMessage += `- ${item.nombre} (cantidad: ${item.cantidad})\n`;
       });
-      confirmMessage += `Total: $${total.toFixed(2)}\n`;
-      await client.sendMessage(msg.from, confirmMessage);
+      confirmMessage += `Total: $${total}\n`; // Usar total calculado
+      await client.sendMessage(pedidoData.numeroCliente, confirmMessage);
       console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
     } else {
       console.error('❌ Registro de pedido falló en el backend:', backendRes.data);
-      await client.sendMessage(msg.from, 'Error al registrar el pedido, intentá de nuevo.');
+      await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');
     }
   } catch (backendErr) {
     console.error('❌ Error al registrar pedido en el backend:', backendErr.message);
-    await client.sendMessage(msg.from, 'Error al registrar el pedido, intentá de nuevo.');
+    await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');
   }
 }
 
-module.exports = { clients, initializeClients };
+module.exports = {
+  clients,
+  initializeClients,
+  identificarNegocio,
+  identificarNegocioPorId,
+  handlePedido,
+  handleReserva
+};
