@@ -17,6 +17,7 @@
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",
     "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-toast": "^1.2.14",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -24,30 +25,32 @@
     "@types/axios": "^0.9.36",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.126",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "axios": "^1.8.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^12.12.1",
+    "framer-motion": "7.6.11",
     "http-proxy-middleware": "^3.0.5",
-    "lucide-react": "^0.511.0",
+    "lucide-react": "^0.523.0",
+    "next-themes": "^0.4.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.5.2",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "react-transition-group": "^4.4.5",
     "recharts": "^2.15.3",
+    "sonner": "^2.0.5",
     "swiper": "^11.2.8",
-    "tailwind-merge": "^3.3.0",
+    "tailwind-merge": "^3.3.1",
     "tw-animate-css": "^1.3.0",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"
@@ -71,12 +74,15 @@
     ]
   },
   "resolutions": {
-    "nth-check": "2.0.1"
+    "nth-check": "2.0.1",
+    "svgo": "^2.8.0"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.3",
+    "customize-cra": "^1.0.0",
+    "postcss": "^8.5.6",
     "react-app-rewired": "^2.2.1",
-    "tailwindcss": "3.4.14"
+    "tailwindcss": "3.4.10",
+    "tailwindcss-animate": "^1.0.7"
   }
 }

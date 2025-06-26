@@ -1,0 +1,16 @@
+{
+  "files": {
+    "main.css": "/static/css/main.da259ed8.css",
+    "main.js": "/static/js/main.d93b8d40.js",
+    "static/js/453.16c5b1d5.chunk.js": "/static/js/453.16c5b1d5.chunk.js",
+    "static/media/LogoAutoWhappBlanco.png": "/static/media/LogoAutoWhappBlanco.7dd3bf08b525dabe8ff3.png",
+    "index.html": "/index.html",
+    "main.da259ed8.css.map": "/static/css/main.da259ed8.css.map",
+    "main.d93b8d40.js.map": "/static/js/main.d93b8d40.js.map",
+    "453.16c5b1d5.chunk.js.map": "/static/js/453.16c5b1d5.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.da259ed8.css",
+    "static/js/main.d93b8d40.js"
+  ]
+}

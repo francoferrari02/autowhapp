@@ -14,7 +14,7 @@ RUN yarn install --frozen-lockfile
 COPY . .
 
 # Build the application
-RUN CI=false yarn build
+RUN CI=false npx react-app-rewired build && cat build/static/css/main.*.css
 
 # Use the Caddy image
 FROM caddy

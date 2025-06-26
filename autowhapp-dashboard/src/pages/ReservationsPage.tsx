@@ -330,7 +330,7 @@ const ReservationsPage: React.FC = () => {
                 label="Duración de la cita (minutos)"
                 type="number"
                 value={appointmentDuration}
-                onChange={(e) => setAppointmentDuration(Number(e.target.value) || 1)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAppointmentDuration(Number(e.target.value) || 1)}
                 sx={{ width: 200 }}
                 inputProps={{ min: 1 }}
               />
@@ -338,7 +338,7 @@ const ReservationsPage: React.FC = () => {
                 label="Espacio entre citas (minutos)"
                 type="number"
                 value={breakBetween}
-                onChange={(e) => setBreakBetween(Number(e.target.value) || 0)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBreakBetween(Number(e.target.value) || 0)}
                 sx={{ width: 200 }}
                 inputProps={{ min: 0 }}
               />
@@ -351,14 +351,14 @@ const ReservationsPage: React.FC = () => {
               <TextField
                 label="Hora de inicio (HH:MM)"
                 value={horaInicioDefault}
-                onChange={(e) => setHoraInicioDefault(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHoraInicioDefault(e.target.value)}
                 sx={{ width: 200 }}
                 inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
               />
               <TextField
                 label="Hora de fin (HH:MM)"
                 value={horaFinDefault}
-                onChange={(e) => setHoraFinDefault(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHoraFinDefault(e.target.value)}
                 sx={{ width: 200 }}
                 inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
               />
@@ -468,14 +468,14 @@ const ReservationsPage: React.FC = () => {
             <TextField
               label="Fecha (YYYY-MM-DD)"
               value={newReservation.fecha}
-              onChange={(e) => setNewReservation({ ...newReservation, fecha: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, fecha: e.target.value })}
               fullWidth
               sx={{ mb: 2 }}
             />
             <TextField
               label="Hora de Inicio (HH:MM)"
               value={newReservation.hora_inicio}
-              onChange={(e) => setNewReservation({ ...newReservation, hora_inicio: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, hora_inicio: e.target.value })}
               fullWidth
               sx={{ mb: 2 }}
               inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
@@ -483,7 +483,7 @@ const ReservationsPage: React.FC = () => {
             <TextField
               label="Hora de Fin (HH:MM)"
               value={newReservation.hora_fin}
-              onChange={(e) => setNewReservation({ ...newReservation, hora_fin: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, hora_fin: e.target.value })}
               fullWidth
               sx={{ mb: 2 }}
               inputProps={{ pattern: '[0-2][0-9]:[0-5][0-9]' }}
@@ -491,21 +491,21 @@ const ReservationsPage: React.FC = () => {
             <TextField
               label="Cliente"
               value={newReservation.cliente}
-              onChange={(e) => setNewReservation({ ...newReservation, cliente: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, cliente: e.target.value })}
               fullWidth
               sx={{ mb: 2 }}
             />
             <TextField
               label="Teléfono"
               value={newReservation.telefono}
-              onChange={(e) => setNewReservation({ ...newReservation, telefono: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, telefono: e.target.value })}
               fullWidth
               sx={{ mb: 2 }}
             />
             <TextField
               label="Descripción"
               value={newReservation.descripcion}
-              onChange={(e) => setNewReservation({ ...newReservation, descripcion: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, descripcion: e.target.value })}
               fullWidth
               sx={{ mb: 2 }}
             />

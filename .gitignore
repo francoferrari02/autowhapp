@@ -3,3 +3,4 @@ autowhapp-dashboard/node_modules/
 *.wwebjs_cache/
 *.wwebjs_auth/
 *.log
+package-lock.json

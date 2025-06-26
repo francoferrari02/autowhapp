@@ -5,12 +5,13 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-// Add this console.log to debug
+// Debug
 console.log('Auth0 Domain:', process.env.REACT_APP_AUTH0_DOMAIN);
 console.log('Auth0 Client ID:', process.env.REACT_APP_AUTH0_CLIENT_ID);
 
+// Usamos la raíz como redirectUri para Auth0
 const redirectUri = window.location.origin;
-console.log('Redirect URI:', redirectUri); // Para ver qué URL se está usando
+console.log('Redirect URI:', redirectUri);
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
@@ -19,15 +20,15 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <Auth0Provider
-  domain="dev-15eg10mp60jkcv6l.us.auth0.com"
-  clientId="lMpFyi8jIoSYqf38GvrvFiFF3Gko8cPK"
-  authorizationParams={{
-    redirect_uri: window.location.origin,
-    audience: "https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/"
-  }}
->
-  <App />
-</Auth0Provider>
+      domain={process.env.REACT_APP_AUTH0_DOMAIN!}
+      clientId={process.env.REACT_APP_AUTH0_CLIENT_ID!}
+      authorizationParams={{
+        redirect_uri: redirectUri,
+        audience: process.env.REACT_APP_AUTH0_AUDIENCE
+      }}
+    >
+      <App />
+    </Auth0Provider>
   </React.StrictMode>
 );
 
