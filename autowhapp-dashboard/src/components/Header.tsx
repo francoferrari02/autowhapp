@@ -78,7 +78,7 @@ const handlePlanSelect = async (plan: string) => {
         audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
       }
     });
-    await axios.put(`http://localhost:3000/api/negocio/${negocioId}/plan`, { plan }, {
+    await axios.put(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}/plan`, { plan }, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -92,7 +92,7 @@ const handlePlanSelect = async (plan: string) => {
 
   const fetchQrs = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/api/qrs');
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/qrs`);
       setQrs(response.data as any[]);
     } catch (error) {
       console.error('Error al obtener QRs:', error);

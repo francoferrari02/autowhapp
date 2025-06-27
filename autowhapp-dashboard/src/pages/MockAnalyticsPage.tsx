@@ -117,7 +117,7 @@ const MockAnalyticsPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
         });
-            const res = await axios.get<{ count: number }>(`http://localhost:3000/api/cantVentas/${negocioId}?year=${year}&month=${month}`, {
+            const res = await axios.get<{ count: number }>(`${process.env.REACT_APP_API_URL}/api/cantVentas/${negocioId}?year=${year}&month=${month}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setTotalVentas(res.data.count);
@@ -136,7 +136,7 @@ const MockAnalyticsPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
         });
-            const res = await axios.get<{ count: number }>(`http://localhost:3000/api/cantReservas/${negocioId}?year=${year}&month=${month}`, {
+            const res = await axios.get<{ count: number }>(`${process.env.REACT_APP_API_URL}/api/cantReservas/${negocioId}?year=${year}&month=${month}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setTotalReservas(res.data.count);
@@ -164,7 +164,7 @@ const MockAnalyticsPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
         });
-            const res = await axios.get<{ count: number }>(`http://localhost:3000/api/ingresos/${negocioId}?year=${year}&month=${month}`, {
+            const res = await axios.get<{ count: number }>(`${process.env.REACT_APP_API_URL}/api/ingresos/${negocioId}?year=${year}&month=${month}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setIngresos(res.data.count);
@@ -183,7 +183,7 @@ const MockAnalyticsPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
         });
-            const res = await axios.get<{ count: string }>(`http://localhost:3000/api/masVendido/${negocioId}?year=${year}&month=${month}`, {
+            const res = await axios.get<{ count: string }>(`${process.env.REACT_APP_API_URL}/api/masVendido/${negocioId}?year=${year}&month=${month}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setProductoMasVendido(res.data.count);
@@ -200,7 +200,7 @@ const MockAnalyticsPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
         });
-            const res = await axios.get<{ count: string }>(`http://localhost:3000/api/menosVendido/${negocioId}?year=${year}&month=${month}`, {
+            const res = await axios.get<{ count: string }>(`${process.env.REACT_APP_API_URL}/api/menosVendido/${negocioId}?year=${year}&month=${month}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setProductoMenosVendido(res.data.count);

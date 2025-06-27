@@ -553,7 +553,7 @@ async function handleReserva(reservaData, token, client) {
 }
 
 async function handlePedido(pedidoData, token, client) {
-  const backendUrl = `http://localhost:3000/api/pedidos/${pedidoData.negocioId}`;
+  const backendUrl = `${process.env.BACKEND_URL}/api/pedidos/${pedidoData.negocioId}`;
   try {
     const backendRes = await axios.post(backendUrl, {
       numero_cliente: pedidoData.numeroCliente,

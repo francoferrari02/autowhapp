@@ -43,7 +43,7 @@ const Orders: React.FC = () => {
               audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
           });
-          const res = await axios.get(`http://localhost:3000/api/productos/${negocioId}`, {
+          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/productos/${negocioId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           setProducts(res.data as { id: number; nombre: string; precio: number }[]);
@@ -64,7 +64,7 @@ const Orders: React.FC = () => {
               audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
           });
-          const res = await axios.get(`http://localhost:3000/api/pedidos/${negocioId}`, {
+          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/pedidos/${negocioId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           const pedidos: Order[] = (res.data as any[]).map((pedido: any) => {
@@ -113,7 +113,7 @@ const Orders: React.FC = () => {
               audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
           });
-          const res = await axios.get(`http://localhost:3000/api/mensajes-pedidos/${negocioId}`, {
+          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/mensajes-pedidos/${negocioId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           const mensajesGuardados = (res.data as { tipo: string; mensaje: string }[]).reduce((acc: any, msg: any) => {
@@ -144,7 +144,7 @@ const Orders: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.post('http://localhost:3000/api/mensajes-pedidos', {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/mensajes-pedidos`, {
         negocio_id: negocioId,
         mensajes: messages,
       }, {
@@ -152,7 +152,7 @@ const Orders: React.FC = () => {
       });
       setMessage('Mensajes guardados con éxito');
       // Forzar recarga de mensajes
-      const res = await axios.get(`http://localhost:3000/api/mensajes-pedidos/${negocioId}`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/mensajes-pedidos/${negocioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const mensajesGuardados = (res.data as { tipo: string; mensaje: string }[]).reduce((acc: any, msg: any) => {
@@ -186,7 +186,7 @@ const Orders: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.put(`http://localhost:3000/api/pedido/${orderId}/estado`, {
+      await axios.put(`h${process.env.REACT_APP_API_URL}/api/pedido/${orderId}/estado`, {
         estado: newStatus.toLowerCase(),
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -213,7 +213,7 @@ const Orders: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.delete(`http://localhost:3000/api/pedidos/${negocioId}/${orderId}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/pedidos/${negocioId}/${orderId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders((prevOrders) => prevOrders.filter((order) => order.id !== orderId));
@@ -239,7 +239,7 @@ const Orders: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.post('http://localhost:3000/api/pedidos/' + negocioId, newOrder, {
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/pedidos/` + negocioId, newOrder, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const total = newOrder.items.reduce((sum, item) => {
@@ -281,7 +281,7 @@ const Orders: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const res = await axios.get(`http://localhost:3000/api/pedidos/${negocioId}`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/pedidos/${negocioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const pedidos: Order[] = (res.data as any[]).map((pedido: any) => {

@@ -27,7 +27,7 @@ const ConfigPage: React.FC = () => {
               audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
           });
-          const res = await axios.get(`http://localhost:3000/api/negocio/${negocioId}`, {
+          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
@@ -56,7 +56,7 @@ const ConfigPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
           }
         });
-        await axios.post('http://localhost:3000/api/actualizar-estado-bot', 
+        await axios.post(`${process.env.REACT_APP_API_URL}/api/actualizar-estado-bot`, 
           { negocioId, estadoBot: nuevoEstado }, 
           {
             headers: {

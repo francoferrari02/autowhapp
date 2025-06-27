@@ -32,7 +32,7 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const response = await axios.get<any[]>(`http://localhost:3000/api/productos/${negocioId}`, {
+      const response = await axios.get<any[]>(`${process.env.REACT_APP_API_URL}/api/productos/${negocioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const fetchedProducts = response.data.map((p: any) => ({
@@ -90,7 +90,7 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      const response = await axios.post('http://localhost:3000/api/productos', {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/productos`, {
         negocio_id: negocioId,
         nombre: newProduct.name,
         descripcion: newProduct.description || '',
@@ -132,7 +132,7 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.put(`http://localhost:3000/api/productos/${editId}`, {
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/productos/${editId}`, {
         nombre: editProduct.name,
         descripcion: editProduct.description || '',
         precio: priceValue,
@@ -163,7 +163,7 @@ const Products: React.FC<ProductsProps> = ({ negocioId }) => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.delete(`http://localhost:3000/api/productos/${id}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/productos/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await fetchProducts();
