@@ -87,7 +87,7 @@ function initializeClientForNegocio(negocio) {
       '--disable-gpu',
       '--disable-web-security',
       '--disable-features=VizDisplayCompositor',
-      '--user-data-dir=/tmp/chrome-user-data-${negocioId}-${Date.now()}'
+      `--user-data-dir=/tmp/chrome-user-data-${negocioId}-${Date.now()}`
     ],
     pipe: true,
     timeout: 60000
