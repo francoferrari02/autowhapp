@@ -303,7 +303,7 @@ cron.schedule('*/30 * * * * *', () => {
     return hh * 60 + mm;
   };
 
-  db.query('SELECT * FROM recordatorios WHERE activo = true', [], async (err, result) => {
+  db.query('SELECT * FROM recordatorios WHERE activo = 1', [], async (err, result) => {
     if (err) {
       //console.error('❌ Error al obtener recordatorios:', err.message);
       return;
