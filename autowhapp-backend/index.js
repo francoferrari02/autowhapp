@@ -18,7 +18,7 @@ const port = process.env.PORT || 3000;
 // Configuración de la base de datos
 const dbConfig = {
   user: process.env.DB_USER || 'autowhapp_user',
-  host: process.env.DB_HOST || 'db', // Cambia 'localhost' por 'db'
+  host: process.env.DB_HOST, /* || 'db', // Cambia 'localhost' por 'db' */
   database: process.env.DB_NAME || 'autowhapp',
   password: process.env.DB_PASSWORD || 'Autowhapp123',
   port: process.env.DB_PORT || 5432,
