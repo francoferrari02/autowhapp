@@ -557,6 +557,27 @@ async function handleReserva(reservaData, token, client) {
       let confirmMessage = "¡Tu reserva ha sido confirmada con éxito!\nDetalle de la reserva:\n";
       confirmMessage += `- Fecha: ${reservaData.fecha}\n`;
       confirmMessage += `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
+
+      // Si hay un precio (por ejemplo, una seña o servicio pago), se agrega link de pago
+      if (reservaData.precio && Number(reservaData.precio) > 0) {
+        try {
+          const pagoRes = await axios.post(`${process.env.BACKEND_URL}/api/mercadopago/create`, {
+            title: `Reserva para ${reservaData.numeroCliente}`,
+            price: Number(reservaData.precio),
+            quantity: 1
+          });
+
+          if (pagoRes.data.link) {
+            confirmMessage += `\n💳 Podés pagarla acá: ${pagoRes.data.link}`;
+          } else {
+            confirmMessage += `\n⚠️ No se pudo generar el link de pago.`;
+          }
+        } catch (err) {
+          console.error('❌ Error al generar el link de pago para la reserva:', err.message);
+          confirmMessage += `\n⚠️ Error al generar el link de pago.`;
+        }
+      }
+
       await client.sendMessage(reservaData.numeroCliente, confirmMessage);
       console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
     } else {
@@ -582,14 +603,32 @@ async function handlePedido(pedidoData, token, client) {
 
     console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
     if (backendRes.status === 200 && backendRes.data.success) {
-      let total = pedidoData.items.reduce((sum, item) => sum + item.cantidad, 0); // Calcular total simple
+      let total = pedidoData.items.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
       let confirmMessage = "¡Tu pedido ha sido registrado con éxito!\nDetalle del pedido:\n";
       pedidoData.items.forEach(item => {
         confirmMessage += `- ${item.nombre} (cantidad: ${item.cantidad})\n`;
       });
-      confirmMessage += `Total: $${total}\n`; // Usar total calculado
+      confirmMessage += `Total: $${total}\n`;
+
+      try {
+        const pagoRes = await axios.post(`${process.env.BACKEND_URL}/api/mercadopago/create`, {
+          title: `Pedido para ${pedidoData.numeroCliente}`,
+          price: total,
+          quantity: 1
+        });
+
+        if (pagoRes.data.link) {
+          confirmMessage += `\n💳 Podés pagarlo acá: ${pagoRes.data.link}`;
+        } else {
+          confirmMessage += `\n⚠️ No se pudo generar el link de pago.`;
+        }
+      } catch (error) {
+        console.error('❌ Error al generar el link de pago:', error.message);
+        confirmMessage += `\n⚠️ Error al generar el link de pago.`;
+      }
+
       await client.sendMessage(pedidoData.numeroCliente, confirmMessage);
-      console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
+      console.log('📨 Mensaje de confirmación enviado con link de pago:', confirmMessage);
     } else {
       console.error('❌ Registro de pedido falló en el backend:', backendRes.data);
       await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');

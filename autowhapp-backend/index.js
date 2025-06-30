@@ -896,6 +896,28 @@ app.post('/api/actualizar-modulo-recordatorios', checkJwt, (req, res) => {
   });
 });
 
+const mercadoPago = require('./mercado-pago');
+
+app.use(express.json());
+
+// Endpoint para crear link de pago
+app.post('/api/mercadopago/create', async (req, res) => {
+  try {
+    const { title, price, quantity } = req.body;
+
+    const link = await mercadoPago.createPaymentPreference({
+      title,
+      price,
+      quantity
+    });
+
+    res.json({ link });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 app.post('/api/negocios', checkJwt, async (req, res) => {
   let client;
   try {
