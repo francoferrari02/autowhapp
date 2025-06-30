@@ -2,6 +2,8 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const axios = require('axios');
 const qrcode = require('qrcode');
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
 // Usar la misma configuración de base de datos que en index.js
 const db = new Pool({
