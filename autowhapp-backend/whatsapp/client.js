@@ -75,7 +75,7 @@ function initializeClientForNegocio(negocio) {
     dataPath: `/tmp/.wwebjs_auth_${negocioId}` // Use /tmp - always writable
   }),
   puppeteer: {
-    headless: true,
+    headless: 'new', // Use new headless mode
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -87,10 +87,25 @@ function initializeClientForNegocio(negocio) {
       '--disable-gpu',
       '--disable-web-security',
       '--disable-features=VizDisplayCompositor',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-ipc-flooding-protection',
+      '--memory-pressure-off',
+      '--max_old_space_size=2048',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images',
+      '--mute-audio',
+      '--no-default-browser-check',
+      '--no-first-run',
+      '--disable-default-apps',
       `--user-data-dir=/tmp/chrome-user-data-${negocioId}-${Date.now()}`
     ],
-    pipe: true,
-    timeout: 60000
+    pipe: false, // Change to false for better stability
+    timeout: 180000, // Increase timeout
+    ignoreDefaultArgs: ['--disable-extensions', '--disable-plugins'],
+    executablePath: process.env.CHROME_BIN || undefined
   }
 });
 
