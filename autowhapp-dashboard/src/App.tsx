@@ -1,3 +1,5 @@
+// App.tsx
+
 import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -30,7 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-const getSelectedTab = (path: string): 'config' | 'orders' | 'analytics' | 'reservations' | 'reminders' => {
+const getSelectedTab = (path: string): 'config' | 'orders' | 'analytics' | 'reservations' | 'reminders' | 'payments' => {
   const route = path.split('/')[1] || 'config';
   switch (route) {
     case 'config':
@@ -44,6 +46,8 @@ const getSelectedTab = (path: string): 'config' | 'orders' | 'analytics' | 'rese
       return 'reservations';
     case 'reminders':
       return 'reminders';
+    case 'payments':
+      return 'payments';
     default:
       return 'config';
   }
@@ -57,14 +61,11 @@ const AppContent: React.FC = () => {
   const prevIsAuth = useRef<boolean>(false);
 
   useEffect(() => {
-    // Solo redirigir si el login fue iniciado con nuestro botón
     const justLoggedIn = window.localStorage.getItem('justLoggedIn') === 'true';
 
     if (!isLoading && isAuthenticated && !prevIsAuth.current && justLoggedIn) {
-      // Limpiamos el flag
       window.localStorage.removeItem('justLoggedIn');
 
-      // Refrescamos y redirigimos según negocio
       refreshNegocio()
         .then((negocio) => {
           if (!negocio) {
@@ -74,7 +75,7 @@ const AppContent: React.FC = () => {
             navigate('/config', { replace: true });
           }
         })
-        .catch((error) =>{
+        .catch((error) => {
           console.error('Error al refrescar negocio:', error);
           navigate('/add-business', { replace: true });
         });
@@ -101,7 +102,7 @@ const AppContent: React.FC = () => {
             <Route path="/reminders" element={<ProtectedRoute><RemindersPage /></ProtectedRoute>} />
             <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} />
-            <Route path="/payments" element={<PaymentsPage />} />
+            <Route path="/payments" element={<ProtectedRoute><PaymentsPage /></ProtectedRoute>} />
             <Route path="*" element={<div>404 - Página no encontrada</div>} />
           </Routes>
         </div>

@@ -1,3 +1,5 @@
+// Sidebar.tsx
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNegocio } from '../NegocioContext';
@@ -11,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
-  selected: 'config' | 'orders' | 'analytics' | 'reservations' | 'reminders';
+  selected: 'config' | 'orders' | 'analytics' | 'reservations' | 'reminders' | 'payments';
 }
 
 const NAV_ITEMS = [
@@ -27,20 +29,19 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
   const navigate = useNavigate();
   const { negocio } = useNegocio();
 
-  // If no businesses exist, don't show the sidebar
   if (!negocio) {
     return null;
   }
 
   return (
     <aside
-  className="bg-[#000000] min-h-screen transition-all duration-300 ease-in-out w-52"
-  style={{
-    paddingLeft: '0.5rem',
-    paddingRight: '0',
-    boxShadow: 'inset -10px 0 15px -5px rgba(0, 0, 0, 0.8), inset -3px 0 7px -3px rgba(0ヴィ, 0, 0, 0.9)'
-  }}
->
+      className="bg-[#000000] min-h-screen transition-all duration-300 ease-in-out w-52"
+      style={{
+        paddingLeft: '0.5rem',
+        paddingRight: '0',
+        boxShadow: 'inset -10px 0 15px -5px rgba(0, 0, 0, 0.8), inset -3px 0 7px -3px rgba(0, 0, 0, 0.9)'
+      }}
+    >
       <nav className="flex flex-col gap-4 pl-2 pr-0 py-2"> 
         {NAV_ITEMS.map(({ id, label, icon: Icon, path }) => {
           const isActive = selected === id;
@@ -61,7 +62,9 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
               }}
             >
               <Icon className="h-6 w-6 text-inherit" />
-              <span className="text-lg ${isActive ? 'text-white' : 'text-blue-100'} transition-opacity duration-300 opacity-100">
+              <span
+                className={`text-lg ${isActive ? 'text-white' : 'text-blue-100'} transition-opacity duration-300 opacity-100`}
+              >
                 {label}
               </span>
             </button>
