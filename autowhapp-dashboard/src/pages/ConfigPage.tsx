@@ -13,9 +13,15 @@ const ConfigPage: React.FC = () => {
   const [negocio, setNegocio] = useState<any>(null);
   const navigate = useNavigate();
 
+  // Ahora capitaliza cada palabra del nombre
   const formatName = (name: string | undefined) => {
     if (!name) return '';
-    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+    return name
+      .split(' ')
+      .map(part =>
+        part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+      )
+      .join(' ');
   };
 
   useEffect(() => {
@@ -27,11 +33,14 @@ const ConfigPage: React.FC = () => {
               audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
             }
           });
-          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`
+          const res = await axios.get(
+            `${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
             }
-          });
+          );
           setNegocio(res.data);
         } catch (err) {
           console.error('Error al cargar el negocio:', err);
@@ -56,15 +65,18 @@ const ConfigPage: React.FC = () => {
             audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
           }
         });
-        await axios.post(`${process.env.REACT_APP_API_URL}/api/actualizar-estado-bot`, 
-          { negocioId, estadoBot: nuevoEstado }, 
+        await axios.post(
+          `${process.env.REACT_APP_API_URL}/api/actualizar-estado-bot`,
+          { negocioId, estadoBot: nuevoEstado },
           {
             headers: {
               Authorization: `Bearer ${token}`
             }
           }
         );
-        setNegocio((prev: any) => prev ? { ...prev, estado_bot: nuevoEstado ? 1 : 0 } : prev);
+        setNegocio((prev: any) =>
+          prev ? { ...prev, estado_bot: nuevoEstado ? 1 : 0 } : prev
+        );
       } catch (err) {
         console.error('Error al actualizar estado del bot:', err);
       }
@@ -84,9 +96,9 @@ const ConfigPage: React.FC = () => {
               </h2>
             </div>
             <div className="flex-1 flex justify-end max-w-xl gap-4">
-              <BotStatus 
-                negocioId={negocioId} 
-                active={!!negocio.estado_bot} 
+              <BotStatus
+                negocioId={negocioId}
+                active={!!negocio.estado_bot}
                 onToggle={handleToggleBot}
               />
             </div>

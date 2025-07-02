@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Button, TextField, MenuItem, Typography } from '@mui/material';
+import { Box, Button, TextField, MenuItem, Typography, Switch, IconButton } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import StorefrontIcon from '@mui/icons-material/Storefront';
@@ -7,6 +7,8 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useNegocio } from '../NegocioContext';
 
@@ -30,7 +32,7 @@ const businessTypes = [
   { value: 'personalizado', label: 'Personalizado' },
 ];
 
-// Componente para input con label e icono
+// Componente para input con label, icono y prefijo opcional
 const LabeledInput: React.FC<{
   label: string;
   icon: React.ReactNode;
@@ -38,37 +40,45 @@ const LabeledInput: React.FC<{
   value: string;
   placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ label, icon, name, value, placeholder, onChange }) => (
+  prefix?: string;
+}> = ({ label, icon, name, value, placeholder, onChange, prefix }) => (
   <div className="flex flex-col gap-1">
     <label htmlFor={name} className="flex items-center gap-1 text-gray-700 font-semibold font-poppins">
       {icon}
       <span>{label}</span>
     </label>
-    <input
-      id={name}
-      name={name}
-      value={value}
-      placeholder={placeholder}
-      onChange={onChange}
-      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins"
-    />
+    <div className="flex">
+      {prefix && (
+        <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg">
+          {prefix}
+        </span>
+      )}
+      <input
+        id={name}
+        name={name}
+        value={value}
+        placeholder={placeholder}
+        onChange={onChange}
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        className={`w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins ${prefix ? 'rounded-l-none' : ''}`}
+      />
+    </div>
   </div>
 );
 
-interface Horario {
+// Definición de intervalos de atención con habilitado y múltiples franjas
+interface Interval {
   open: string;
   close: string;
 }
-
-interface Horarios {
-  Lunes: Horario;
-  Martes: Horario;
-  Miércoles: Horario;
-  Jueves: Horario;
-  Viernes: Horario;
-  Sábado: Horario;
-  Domingo: Horario;
+interface DaySchedule {
+  enabled: boolean;
+  intervals: Interval[];
 }
+
+type Horarios = Record<string, DaySchedule>;
 
 interface BusinessData {
   nombre: string;
@@ -85,14 +95,15 @@ interface BusinessResponse {
   message: string;
 }
 
+// Horarios por defecto: todos habilitados con un intervalo único
 const defaultHorarios: Horarios = {
-  Lunes: { open: '09:00', close: '18:00' },
-  Martes: { open: '09:00', close: '18:00' },
-  Miércoles: { open: '09:00', close: '18:00' },
-  Jueves: { open: '09:00', close: '18:00' },
-  Viernes: { open: '09:00', close: '18:00' },
-  Sábado: { open: '09:00', close: '18:00' },
-  Domingo: { open: '09:00', close: '18:00' }
+  Lunes:    { enabled: true, intervals: [{ open: '09:00', close: '18:00' }] },
+  Martes:   { enabled: true, intervals: [{ open: '09:00', close: '18:00' }] },
+  Miércoles:{ enabled: true, intervals: [{ open: '09:00', close: '18:00' }] },
+  Jueves:   { enabled: true, intervals: [{ open: '09:00', close: '18:00' }] },
+  Viernes:  { enabled: true, intervals: [{ open: '09:00', close: '18:00' }] },
+  Sábado:   { enabled: true, intervals: [{ open: '09:00', close: '18:00' }] },
+  Domingo:  { enabled: true, intervals: [{ open: '09:00', close: '18:00' }] }
 };
 
 const AddBusinessPage: React.FC = () => {
@@ -113,124 +124,107 @@ const AddBusinessPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Días de la semana
+  const days = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+  // Maneja cambios de inputs básicos
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    const { name, value: raw } = e.target;
+    const value = name === 'numero_telefono' ? raw.replace(/\D/g, '') : raw;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // Cambia el tipo de negocio
   const handleTypeChange = (e: React.ChangeEvent<{ value: unknown }>) => {
-    const value = e.target.value as string;
-    if (value === 'personalizado') {
+    const v = e.target.value as string;
+    if (v === 'personalizado') {
       setCustomType('');
-      setFormData({ ...formData, tipo_negocio: 'personalizado' });
+      setFormData(prev => ({ ...prev, tipo_negocio: 'personalizado' }));
     } else {
       setCustomType('');
-      setFormData({ ...formData, tipo_negocio: value });
+      setFormData(prev => ({ ...prev, tipo_negocio: v }));
     }
   };
-
   const handleCustomTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setCustomType(value);
-    setFormData({ ...formData, tipo_negocio: value });
+    const v = e.target.value;
+    setCustomType(v);
+    setFormData(prev => ({ ...prev, tipo_negocio: v }));
   };
 
-  const handleHoursChange = (day: keyof Horarios, field: 'open' | 'close', value: string) => {
+  // Horarios: toggle día
+  const handleToggleDay = (day: string) => {
+    setFormData(prev => ({
+      ...prev,
+      horarios: {
+        ...prev.horarios,
+        [day]: { ...prev.horarios[day], enabled: !prev.horarios[day].enabled }
+      }
+    }));
+  };
+  // Horarios: cambia intervalos
+  const handleIntervalChange = (day: string, idx: number, field: 'open' | 'close', val: string) => {
     setFormData(prev => ({
       ...prev,
       horarios: {
         ...prev.horarios,
         [day]: {
           ...prev.horarios[day],
-          [field]: value
+          intervals: prev.horarios[day].intervals.map((int, i) => i === idx ? { ...int, [field]: val } : int)
         }
       }
     }));
   };
+  // Horarios: agregar intervalo
+  const handleAddInterval = (day: string) => {
+    setFormData(prev => ({
+      ...prev,
+      horarios: {
+        ...prev.horarios,
+        [day]: { ...prev.horarios[day], intervals: [...prev.horarios[day].intervals, { open: '09:00', close: '18:00' }] }
+      }
+    }));
+  };
+  // Horarios: eliminar intervalo
+  const handleRemoveInterval = (day: string, idx: number) => {
+    setFormData(prev => ({
+      ...prev,
+      horarios: {
+        ...prev.horarios,
+        [day]: { ...prev.horarios[day], intervals: prev.horarios[day].intervals.filter((_,i) => i!==idx) }
+      }
+    }));
+  };
 
+  // Guardar negocio
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
     try {
-      if (!process.env.REACT_APP_API_URL) {
-        throw new Error('API URL is not configured');
-      }
-
-      console.log('Environment variables:', {
-        API_URL: process.env.REACT_APP_API_URL,
-        AUTH0_DOMAIN: process.env.REACT_APP_AUTH0_DOMAIN,
-        AUTH0_AUDIENCE: process.env.REACT_APP_AUTH0_AUDIENCE
+      if (!process.env.REACT_APP_API_URL) throw new Error('API URL no configurada');
+      const token = await getAccessTokenSilently({ authorizationParams: { audience: process.env.REACT_APP_AUTH0_AUDIENCE } });
+      const apiUrl = `${process.env.REACT_APP_API_URL.trim()}/api/negocios`;
+      const telefonoConPrefijo = `+54${formData.numero_telefono}`;
+      const dataToSend = {...formData, numero_telefono: telefonoConPrefijo};
+      const res = await axios.post<BusinessResponse>(apiUrl, dataToSend, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
+        timeout:5000
       });
-      console.log('Audience:', process.env.REACT_APP_AUTH0_AUDIENCE);
-      const token = await getAccessTokenSilently({
-        
-        authorizationParams: {
-          audience: process.env.REACT_APP_AUTH0_AUDIENCE,
-          //scope: "read:negocios write:negocios"
-          
-        }
-      });
-      console.log('TOKEN:', token);
-
-      const baseUrl = process.env.REACT_APP_API_URL.trim();
-      const apiUrl = `${baseUrl}/api/negocios`;
-      
-      console.log('Making request to:', apiUrl);
-      console.log('Request payload:', formData);
-
-      const response = await axios.post<BusinessResponse>(
-        apiUrl,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          timeout: 5000
-        }
-      );
-
-      console.log('Save response:', response.data);
-
-      if (response.status === 201 || response.status === 200) {
+      if (res.status===201||res.status===200) {
         await refreshNegocios();
         navigate('/dashboard');
-      } else {
-        throw new Error('Unexpected response status: ' + response.status);
-      }
-    } catch (error: any) {
-      console.error('Error al guardar el negocio:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers,
-          data: error.config?.data
-        }
-      });
-      setError(error.response?.data?.message || error.message || 'Error al guardar el negocio');
-    } finally {
-      setLoading(false);
-    }
+      } else throw new Error('Respuesta inesperada: '+res.status);
+    } catch(err:any) {
+      setError(err.response?.data?.message||err.message||'Error al guardar el negocio');
+    } finally { setLoading(false); }
   };
 
-  const days: (keyof typeof formData.horarios)[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', p: 3 }}>
-      <Typography variant="h4" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', color: 'white', mb: 4 }}>
-        Agregar Nuevo Negocio
+    <Box sx={{ backgroundColor:'#2563EB', minHeight:'100vh', p:3 }}>
+      <Typography variant="h4" sx={{ fontFamily:'Poppins', fontWeight:'bold', color:'white', mb:4 }}>
+        Bienvenido!
       </Typography>
-      <Box className="bg-white rounded-lg p-6 max-w-[1000px] mx-auto" style={{ boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
+      <Box className="bg-white rounded-lg p-6 max-w-[1000px] mx-auto" sx={{ boxShadow:'0 0 7px rgba(0,0,0,0.2)' }}>
         <div className="space-y-5">
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -252,32 +246,31 @@ const AddBusinessPage: React.FC = () => {
             icon={<PhoneIcon className="text-primary-blue" />}
             name="numero_telefono"
             value={formData.numero_telefono}
-            placeholder="Ej. +541123456789"
+            placeholder="Ej. 112345678"
             onChange={handleInputChange}
+            prefix="+54"
           />
 
           <div className="flex flex-col gap-1">
-            <label htmlFor="tipo_negocio" className="text-gray-700 font-semibold font-poppins">
-              Tipo de Negocio
-            </label>
+            <label htmlFor="tipo_negocio" className="text-gray-700 font-semibold font-poppins">Tipo de Negocio</label>
             <TextField
               id="tipo_negocio"
               select
-              value={businessTypes.find(bt => bt.value === formData.tipo_negocio) ? formData.tipo_negocio : 'personalizado'}
+              value={businessTypes.find(bt=>bt.value===formData.tipo_negocio)?formData.tipo_negocio:'personalizado'}
               onChange={handleTypeChange}
               fullWidth
               variant="outlined"
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+              sx={{ '& .MuiOutlinedInput-root':{ borderRadius:'8px' } }}
             >
-              {businessTypes.map(({ value, label }) => (
-                <MenuItem key={value} value={value} disabled={value === ''}>
+              {businessTypes.map(({value,label})=> (
+                <MenuItem key={value} value={value} disabled={value===''}>
                   {label}
                 </MenuItem>
               ))}
             </TextField>
           </div>
 
-          {(formData.tipo_negocio === 'personalizado' || !businessTypes.find(bt => bt.value === formData.tipo_negocio)) && (
+          {(formData.tipo_negocio==='personalizado'||!businessTypes.find(bt=>bt.value===formData.tipo_negocio)) && (
             <div className="flex flex-col gap-1 mt-2">
               <label htmlFor="customType" className="text-gray-700 font-semibold font-poppins">
                 Especifique el Tipo de Negocio
@@ -311,59 +304,79 @@ const AddBusinessPage: React.FC = () => {
             onChange={handleInputChange}
           />
 
-          <div className="border border-gray-300 rounded-lg">
-            <div className="flex items-center justify-between p-3 bg-gray-100 rounded-t-lg">
-              <div className="flex items-center gap-2 font-poppins font-semibold text-gray-700">
-                <AccessTimeIcon />
-                <span>Horarios de Atención</span>
-              </div>
-            </div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {days.map((day) => (
-                <div key={day} className="flex items-center gap-4">
-                  <span className="w-24 font-poppins text-gray-700">{day}</span>
-                  <input
-                    type="time"
-                    value={formData.horarios[day as keyof typeof formData.horarios].open}
-                    onChange={(e) => handleHoursChange(day, 'open', e.target.value)}
-                    className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                  />
-                  <input
-                    type="time"
-                    value={formData.horarios[day].close}
-                    onChange={(e) => handleHoursChange(day, 'close', e.target.value)}
-                    className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                  />
-                </div>
+          {/* Horarios de Atención con indicadores y multi-intervalos */}
+          <Box border={1} borderColor="grey.300" borderRadius={1} mb={4} p={2}>
+            <Box display="flex" alignItems="center" px={3} py={2} bgcolor="grey.100">
+              <AccessTimeIcon fontSize="small" />
+              <Typography variant="subtitle1" sx={{ ml:1 }}>Horarios de Atención</Typography>
+            </Box>
+            <Box px={3} py={2}>
+              {days.map(day=> (
+                <Box key={day} display="flex" alignItems="center" mb={1}>
+                  <Switch size="small" checked={formData.horarios[day].enabled} onChange={()=>handleToggleDay(day)} />
+                  <Typography variant="body2" sx={{ width:80 }}>{day}</Typography>
+                  {formData.horarios[day].enabled && formData.horarios[day].intervals.map((interval,idx) => (
+                    <Box key={idx} display="flex" alignItems="center" ml={1}>
+                      <TextField
+                        type="time"
+                        variant="outlined"
+                        size="small"
+                        value={interval.open}
+                        onChange={e=>handleIntervalChange(day,idx,'open',e.target.value)}
+                        inputProps={{ step:300 }}
+                        sx={{ width:140 }}
+                      />
+                      <Typography variant="body2" sx={{ mx:0.5 }}>-</Typography>
+                      <TextField
+                        type="time"
+                        variant="outlined"
+                        size="small"
+                        value={interval.close}
+                        onChange={e=>handleIntervalChange(day,idx,'close',e.target.value)}
+                        inputProps={{ step:300 }}
+                        sx={{ width:140 }}
+                      />
+                      {formData.horarios[day].intervals.length>1 && (
+                        <IconButton size="small" color="error" onClick={()=>handleRemoveInterval(day,idx)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+                  ))}
+                  {formData.horarios[day].enabled && (
+                    <IconButton size="small" onClick={()=>handleAddInterval(day)}>
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
               ))}
-            </div>
-          </div>
+            </Box>
+          </Box>
 
           <div className="flex flex-col gap-1">
             <label htmlFor="contexto" className="flex items-center gap-2 text-gray-700 font-semibold font-poppins">
-              <ChatBubbleOutlineIcon className="text-primary-blue" />
-              Sugerencias/Aclaraciones para el Bot (Opcional)
+              <ChatBubbleOutlineIcon className="text-primary-blue" /> Sugerencias/Aclaraciones para el Bot (Opcional)
             </label>
             <textarea
               id="contexto"
               value={formData.contexto}
-              onChange={(e) => setFormData({ ...formData, contexto: e.target.value })}
+              onChange={(e)=>setFormData(prev=>({...prev,contexto:e.target.value}))}
               placeholder="Dale alguna sugerencia o aclaración extra al bot (opcional)..."
               className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins"
               rows={4}
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <Box display="flex" justifyContent="flex-end">
             <Button
               variant="contained"
-              sx={{ backgroundColor: '#34C759', '&:hover': { backgroundColor: '#2EA44F' }, borderRadius: 2 }}
+              sx={{ backgroundColor:'#34C759','&:hover':{backgroundColor:'#2EA44F'},borderRadius:2 }}
               onClick={handleSave}
               disabled={loading}
             >
-              {loading ? 'Guardando...' : 'Guardar Negocio'}
+              {loading?'Guardando...':'Guardar Negocio'}
             </Button>
-          </div>
+          </Box>
         </div>
       </Box>
     </Box>
