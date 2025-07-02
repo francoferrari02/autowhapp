@@ -75,7 +75,7 @@ const LabeledInput: React.FC<{ label: string; icon: React.ReactNode; name: strin
 );
 
 const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
-  const { refreshNegocios } = useNegocio();
+  const { refreshNegocio } = useNegocio();
   const { getAccessTokenSilently } = useAuth0();
   const [business, setBusiness] = useState<Business | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,34 +111,34 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
     [day]: { ...prev[day], intervals: prev[day].intervals.filter((_, i) => i !== idx) }
   }));
 
+  const getToken = async () => {
+    return getAccessTokenSilently({
+      authorizationParams: { audience: process.env.REACT_APP_AUTH0_AUDIENCE! }
+    });
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = await getAccessTokenSilently({ authorizationParams: { audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/' } });
-        // Cast to any to avoid TS18046
-        const businessRes = await axios.get<any>(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = businessRes.data;
-        // Parse horarios: legacy o nuevo formato
-        let raw: any = null;
-        try { raw = data.horarios ? JSON.parse(data.horarios) : null; } catch { raw = null; }
-        let parsed: Horarios;
-        if (raw && raw.Lunes && Array.isArray(raw.Lunes.intervals)) parsed = raw;
-        else if (raw) parsed = days.reduce((acc, day) => ({ ...acc, [day]: { enabled: true, intervals: [{ open: raw[day].open, close: raw[day].close }] } }), {} as Horarios);
-        else parsed = defaultSchedules;
-        setSchedules(parsed);
-
+        const token = await getToken();
+        const res = await axios.get<any>(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = res.data;
+        // Parse horarios y demás…
         setBusiness({ id: data.id, name: data.nombre, type: data.tipo_negocio, location: data.localidad, address: data.direccion, hours: {}, isActive: data.estado_bot });
         setContext(data.contexto || '');
-        setCustomType(businessTypes.some(bt => bt.value === data.tipo_negocio) ? '' : data.tipo_negocio);
+        setFaqs([]);
       } catch (err: any) {
         setError(err.response?.status === 404 ? 'Negocio no encontrado' : 'Error al cargar la configuración');
       }
 
       try {
-        const token = await getAccessTokenSilently({ authorizationParams: { audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/' } });
-        // Cast to any[] to avoid TS18046
-        const faqsRes = await axios.get<any[]>(`${process.env.REACT_APP_API_URL}/api/faqs/${negocioId}`, { headers: { Authorization: `Bearer ${token}` } });
-        setFaqs(faqsRes.data.map(f => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
+        const token = await getToken();
+        const resFaqs = await axios.get<any[]>(`${process.env.REACT_APP_API_URL}/api/faqs/${negocioId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setFaqs(resFaqs.data.map(f => ({ id: f.id, question: f.pregunta, answer: f.respuesta })));
       } catch {
         setFaqs([]);
       }
@@ -183,7 +183,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
       for(const faq of faqs){ if(!faq.question.trim()||!faq.answer.trim()){ setMessage(`Error: La FAQ "${faq.question||'sin pregunta'}" tiene campos vacíos.`); return;} if(!faq.id){ const res=await axios.post<CreateFaqResponse>(`${process.env.REACT_APP_API_URL}/api/faqs`,{negocioId,pregunta:faq.question.trim(),respuesta:faq.answer.trim()},{headers:{Authorization:`Bearer ${token}`}}); faq.id=res.data.id;} else{ await axios.put(`${process.env.REACT_APP_API_URL}/api/faqs/${faq.id}`,{pregunta:faq.question.trim(),respuesta:faq.answer.trim()},{headers:{Authorization:`Bearer ${token}`}});} }
       const updated = await axios.get<any[]>(`${process.env.REACT_APP_API_URL}/api/faqs/${negocioId}`,{headers:{Authorization:`Bearer ${token}`}});
       setFaqs(updated.data.map(f=>({id:f.id,question:f.pregunta,answer:f.respuesta})));
-      setMessage('Configuración guardada con éxito'); refreshNegocios();
+      setMessage('Configuración guardada con éxito'); refreshNegocio();
     } catch(err:any){ setMessage(`Error al guardar la configuración: ${err.response?.data?.error||err.message}`); }
   };
 

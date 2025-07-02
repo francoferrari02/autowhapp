@@ -109,7 +109,7 @@ const defaultHorarios: Horarios = {
 const AddBusinessPage: React.FC = () => {
   const navigate = useNavigate();
   const { getAccessTokenSilently } = useAuth0();
-  const { refreshNegocios, setNegocioId } = useNegocio();
+  const { refreshNegocio, setNegocioId } = useNegocio();
   const [formData, setFormData] = useState<BusinessData>({
     nombre: '',
     numero_telefono: '',
@@ -211,7 +211,7 @@ const AddBusinessPage: React.FC = () => {
         timeout:5000
       });
       if (res.status===201||res.status===200) {
-        await refreshNegocios();
+        await refreshNegocio();
         navigate('/dashboard');
       } else throw new Error('Respuesta inesperada: '+res.status);
     } catch(err:any) {

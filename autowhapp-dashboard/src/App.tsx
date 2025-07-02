@@ -53,7 +53,7 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth0();
-  const { negocios, setNegocioId, refreshNegocios } = useNegocio();
+  const { negocio, setNegocioId, refreshNegocio } = useNegocio();
   const prevIsAuth = useRef<boolean>(false);
 
   useEffect(() => {
@@ -65,20 +65,23 @@ const AppContent: React.FC = () => {
       window.localStorage.removeItem('justLoggedIn');
 
       // Refrescamos y redirigimos según negocio
-      refreshNegocios()
-        .then(() => {
-          if (negocios.length === 0) {
+      refreshNegocio()
+        .then((negocio) => {
+          if (!negocio) {
             navigate('/add-business', { replace: true });
           } else {
-            setNegocioId(negocios[0].id);
+            setNegocioId(negocio.id);
             navigate('/config', { replace: true });
           }
         })
-        .catch(console.error);
+        .catch((error) =>{
+          console.error('Error al refrescar negocio:', error);
+          navigate('/add-business', { replace: true });
+        });
     }
 
     prevIsAuth.current = isAuthenticated;
-  }, [isAuthenticated, isLoading, negocios, refreshNegocios, setNegocioId, navigate]);
+  }, [isAuthenticated, isLoading, refreshNegocio, setNegocioId, navigate]);
 
   const selectedTab = getSelectedTab(location.pathname);
   const isLandingPage = location.pathname === '/';

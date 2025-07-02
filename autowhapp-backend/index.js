@@ -999,27 +999,24 @@ app.get('/api/faqs/:negocioId', checkJwt, (req, res) => {
   });
 });
 
-app.post('/api/faqs', checkJwt, (req, res) => {
+app.post('/api/faqs', checkJwt, async (req, res) => {
   const { negocioId, pregunta, respuesta } = req.body;
-  console.log('Datos recibidos en POST /api/faqs:', { negocioId, pregunta, respuesta });
-
   if (!negocioId || !pregunta || !respuesta) {
-    console.log('Faltan campos obligatorios para crear FAQ');
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
-
-  db.query('INSERT INTO faqs (negocio_id, pregunta, respuesta) VALUES ($1, $2, $3)',
-    [negocioId, pregunta, respuesta],
-    function(err) {
-      if (err) {
-        console.error('Error al crear FAQ:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-      console.log('FAQ creada con éxito, ID:', this.lastID);
-      res.json({ success: true, id: this.lastID });
-    }
-  );
+  try {
+    const result = await db.query(
+      `INSERT INTO faqs (negocio_id, pregunta, respuesta)
+       VALUES ($1, $2, $3) RETURNING id`,
+       [negocioId, pregunta, respuesta]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error('Error al crear FAQ:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
+
 
 app.put('/api/faqs/:id', checkJwt, (req, res) => {
   const { pregunta, respuesta } = req.body;

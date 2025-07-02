@@ -12,7 +12,7 @@ import logo from '../assets/LogoAutoWhappBlanco.png';
 import axios from 'axios';
 
 const Header: React.FC = () => {
-  const { negocioId, setNegocioId, negocios, refreshNegocios } = useNegocio();
+  const { negocio, setNegocioId, refreshNegocio } = useNegocio();
   const { logout, user } = useAuth0();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [qrAnchorEl, setQrAnchorEl] = useState<null | HTMLElement>(null);
@@ -70,20 +70,19 @@ const Header: React.FC = () => {
   const { getAccessTokenSilently } = useAuth0(); // Asegúrate de importar useAuth0
 
 const handlePlanSelect = async (plan: string) => {
-  console.log('Intentando cambiar plan:', { negocioId, plan });
-  if (!negocioId) return;
+  if (!negocio?.id) return;
   try {
     const token = await getAccessTokenSilently({
       authorizationParams: {
         audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
       }
     });
-    await axios.put(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}/plan`, { plan }, {
+    await axios.put(`${process.env.REACT_APP_API_URL}/api/negocio/${negocio.id}/plan`, { plan }, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
-    await refreshNegocios();
+    await refreshNegocio();
     handlePlanMenuClose();
   } catch (error) {
     console.error('Error al cambiar plan:', error);
@@ -107,7 +106,7 @@ const handlePlanSelect = async (plan: string) => {
     }
   }, [qrAnchorEl]);
 
-  const selectedNegocio = negocios.find(negocio => negocio.id === negocioId);
+  
 
   return (
     <AppBar
@@ -144,7 +143,7 @@ const handlePlanSelect = async (plan: string) => {
         <IconButton
           sx={{ backgroundColor: 'rgb(69, 79, 225)', marginRight: 1, '&:hover': { backgroundColor: '#93C5FD' } }}
           onClick={handleQrMenuOpen}
-          disabled={negocios.length === 0}
+          disabled={!negocio}
         >
           <QrCodeIcon sx={{ color: '#FFFFFF' }} />
         </IconButton>
@@ -163,26 +162,10 @@ const handlePlanSelect = async (plan: string) => {
           <MenuItem disabled sx={{ fontFamily: 'Poppins' }}>
             {user?.name || 'Usuario'}
           </MenuItem>
-          {negocios.length === 0 ? (
-            <MenuItem disabled>No se pudieron cargar negocios</MenuItem>
-          ) : (
-            negocios.map(negocio => (
-              <MenuItem
-                key={negocio.id}
-                onClick={() => handleNegocioSelect(negocio.id)}
-                sx={{
-                  fontFamily: 'Poppins',
-                  '&:hover': { backgroundColor: '#93C5FD' },
-                  backgroundColor: negocioId === negocio.id ? '#93C5FD' : 'transparent',
-                }}
-              >
-                {negocio.nombre}
-              </MenuItem>
-            ))
-          )}
           <MenuItem
             onClick={handleAddBusiness}
             sx={{ fontFamily: 'Poppins', '&:hover': { backgroundColor: '#93C5FD' } }}
+            disabled={!!negocio}
           >
             <AddIcon sx={{ mr: 1 }} />
             Agregar Negocio

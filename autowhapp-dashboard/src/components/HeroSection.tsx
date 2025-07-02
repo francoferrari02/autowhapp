@@ -27,21 +27,6 @@ const HeroSection = () => {
               </p>
             </div>
 
-            {/* Stats */}
-            <div className="flex flex-wrap gap-6">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-autowhapp-blue" />
-                <span className="text-sm font-medium">Soporte 24/7</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-autowhapp-blue" />
-                <span className="text-sm font-medium">+500 PYMES</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MessageCircle className="h-5 w-5 text-autowhapp-blue" />
-                <span className="text-sm font-medium">Integración Simple</span>
-              </div>
-            </div>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
