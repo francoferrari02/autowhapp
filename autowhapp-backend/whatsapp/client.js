@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
+
 // Usar la misma configuración de base de datos que en index.js
 const db = new Pool({
   user: process.env.DB_USER,
@@ -333,14 +334,14 @@ function initializeClientForNegocio(negocio) {
 
       // Aquí deberías obtener el token de acceso de alguna manera
       // Por ejemplo, pasándolo desde el frontend en la solicitud
-      const token = msg.token; // Asegúrate de que el token se pase correctamente
+      
 
       if (reservaData) {
         console.log('🔍 Reserva detectada:', reservaData);
-        await handleReserva(reservaData, token); // Pasar el token aquí
+        await handleReserva(reservaData, client); // Pasar el token aquí
       } else if (pedidoData) {
         console.log('🔍 Pedido detectado:', pedidoData);
-        await handlePedido(pedidoData, token); // Pasar el token aquí
+        await handlePedido(pedidoData, client); // Pasar el token aquí
       } else {
         await client.sendMessage(msg.from, respuesta);
         console.log('📨 Respuesta enviada (no es reserva ni pedido):', respuesta);
@@ -355,77 +356,41 @@ function initializeClientForNegocio(negocio) {
   console.log(`Cliente inicializado para negocio ${negocioId}`);
 }
 
-/* async function identificarNegocio(cleanNumero) {
-  console.log(`Buscando negocio con número: ${cleanNumero}`);
-  try {
-    const { rows } = await db.query(
-      'SELECT * FROM negocios WHERE regexp_replace(numero_telefono, \'[^0-9]\', \'\', \'g\') = regexp_replace($1, \'[^0-9]\', \'\', \'g\')',
-      [cleanNumero]
-    );
-    const negocio = rows[0];
-    if (!negocio) {
-      console.log('Negocio no encontrado para número:', cleanNumero);
-      return null;
-    }
-    console.log('Datos crudos de identificarNegocio:', negocio);
-    return {
-      id: negocio.id,
-      nombre: negocio.nombre,
-      numero_telefono: negocio.numero_telefono,
-      grupo_id: negocio.grupo_id,
-      tipo_negocio: negocio.tipo_negocio,
-      localidad: negocio.localidad,
-      direccion: negocio.direccion,
-      horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
-      contexto: negocio.contexto || '',
-      estado_bot: Number(negocio.estado_bot) === 1,
-      modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
-      modulo_reservas: Number(negocio.modulo_reservas) === 1,
-      appointment_duration: Number(negocio.appointment_duration) || 60,
-      break_between: Number(negocio.break_between) || 15,
-      hora_inicio_default: negocio.hora_inicio_default || '09:00',
-      hora_fin_default: negocio.hora_fin_default || '18:00',
-    };
-  } catch (err) {
-    console.error('Error al buscar negocio:', err.message);
-    return null;
-  }
-}
 
-async function identificarNegocioPorId(negocioId) {
-  try {
-    const { rows } = await db.query('SELECT * FROM negocios WHERE id = $1', [negocioId]);
-    const negocio = rows[0];
-    if (!negocio) {
-      console.log('Negocio no encontrado por ID:', negocioId);
-      return null;
-    }
-    console.log('Datos crudos de identificarNegocioPorId:', negocio);
-    return {
-      id: negocio.id,
-      nombre: negocio.nombre,
-      numero_telefono: negocio.numero_telefono,
-      grupo_id: negocio.grupo_id,
-      tipo_negocio: negocio.tipo_negocio,
-      localidad: negocio.localidad,
-      direccion: negocio.direccion,
-      horarios: negocio.horarios ? JSON.parse(negocio.horarios) : {},
-      contexto: negocio.contexto || '',
-      estado_bot: Number(negocio.estado_bot) === 1,
-      modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
-      modulo_reservas: Number(negocio.modulo_reservas) === 1,
-      appointment_duration: Number(negocio.appointment_duration) || 60,
-      break_between: Number(negocio.break_between) || 15,
-      hora_inicio_default: negocio.hora_inicio_default || '09:00',
-      hora_fin_default: negocio.hora_fin_default || '18:00',
-    };
-  } catch (err) {
-    console.error('Error al buscar negocio por ID:', err.message);
-    return null;
-  }
-} */
 
-  async function identificarNegocio(cleanNumero) {
+let cachedToken = null;
+let tokenExpiresAt = 0;
+
+async function getApiToken() {
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedToken && now < tokenExpiresAt - 30) {
+    return cachedToken;
+  }
+
+  const tokenUrl = `https://${process.env.M2M_AUTH0_DOMAIN}/oauth/token`;
+
+  try {
+    const response = await axios.post(tokenUrl, {
+      grant_type: 'client_credentials',
+      client_id: process.env.M2M_AUTH0_CLIENT_ID,
+      client_secret: process.env.M2M_AUTH0_CLIENT_SECRET,
+      audience: process.env.M2M_AUTH0_AUDIENCE
+    }, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    const { access_token, expires_in } = response.data;
+    cachedToken = access_token;
+    tokenExpiresAt = now + expires_in;
+    return cachedToken;
+  } catch (error) {
+    console.error('❌ Error al obtener token M2M:', error.response?.data || error.message);
+    throw error;
+  }
+}module.exports = { getApiToken };
+
+
+async function identificarNegocio(cleanNumero) {
   console.log(`Buscando negocio con número: ${cleanNumero}`);
   try {
     // Remove + sign and any non-numeric characters for comparison
@@ -537,104 +502,113 @@ function detectarPedido(respuesta) {
   return null;
 }
 
-async function handleReserva(reservaData, token, client) {
-  const backendUrl = `${process.env.REACT_APP_API_URL}/api/reservas/${reservaData.negocioId}`;
+/**
+ * Inserta una reserva en tu backend usando token M2M
+ */
+async function handleReserva(reservaData, client) {
+  const token = await getApiToken();
+  const backendUrl = `${process.env.BACKEND_URL}/api/reservas/${reservaData.negocioId}`;
+
   try {
-    const backendRes = await axios.post(backendUrl, {
-      fecha: reservaData.fecha,
-      hora_inicio: reservaData.hora_inicio,
-      hora_fin: reservaData.hora_fin,
-      ocupado: 1,
-      cliente: 'Cliente vía WhatsApp',
-      telefono: reservaData.numeroCliente,
-      descripcion: 'Reserva confirmada por bot'
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await axios.post(
+      backendUrl,
+      {
+        fecha: reservaData.fecha,
+        hora_inicio: reservaData.hora_inicio,
+        hora_fin: reservaData.hora_fin,
+        ocupado: 1,
+        cliente: 'Cliente vía WhatsApp',
+        telefono: reservaData.numeroCliente,
+        descripcion: 'Reserva confirmada por bot'
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-    console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
-    if (backendRes.status === 200 && backendRes.data.success) {
-      let confirmMessage = "¡Tu reserva ha sido confirmada con éxito!\nDetalle de la reserva:\n";
-      confirmMessage += `- Fecha: ${reservaData.fecha}\n`;
-      confirmMessage += `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
+    console.log('📥 Reserva insertada:', res.status, res.data);
+    if (res.status === 200 && res.data.success) {
+      let confirmMsg = `¡Tu reserva ha sido confirmada con éxito!\nDetalle de la reserva:\n`
+                     + `- Fecha: ${reservaData.fecha}\n`
+                     + `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
 
-      // Si hay un precio (por ejemplo, una seña o servicio pago), se agrega link de pago
-      if (reservaData.precio && Number(reservaData.precio) > 0) {
+      // Si viene precio > 0, generamos link
+      if (reservaData.precio > 0) {
         try {
-          const pagoRes = await axios.post(`${process.env.BACKEND_URL}/api/mercadopago/create`, {
-            title: `Reserva para ${reservaData.numeroCliente}`,
-            price: Number(reservaData.precio),
-            quantity: 1
-          });
-
-          if (pagoRes.data.link) {
-            confirmMessage += `\n💳 Podés pagarla acá: ${pagoRes.data.link}`;
-          } else {
-            confirmMessage += `\n⚠️ No se pudo generar el link de pago.`;
-          }
-        } catch (err) {
-          console.error('❌ Error al generar el link de pago para la reserva:', err.message);
-          confirmMessage += `\n⚠️ Error al generar el link de pago.`;
+          const pago = await axios.post(
+            `${process.env.BACKEND_URL}/api/mercadopago/create`,
+            { title: `Reserva para ${reservaData.numeroCliente}`, price: Number(reservaData.precio), quantity: 1 }
+          );
+          confirmMsg += pago.data.link
+            ? `\n💳 Podés pagarla acá: ${pago.data.link}`
+            : `\n⚠️ No se pudo generar el link de pago.`;
+        } catch (e) {
+          console.error('❌ Error link pago:', e.message);
+          confirmMsg += `\n⚠️ Error al generar el link de pago.`;
         }
       }
 
-      await client.sendMessage(reservaData.numeroCliente, confirmMessage);
-      console.log('📨 Mensaje de confirmación enviado:', confirmMessage);
+      await client.sendMessage(reservaData.numeroCliente, confirmMsg);
+      console.log('📨 Mensaje de confirmación enviado');
     } else {
-      console.error('❌ Registro de reserva falló en el backend:', backendRes.data);
+      console.error('❌ Backend rechazó la reserva:', res.data);
       await client.sendMessage(reservaData.numeroCliente, 'Error al confirmar la reserva, intentá de nuevo.');
     }
-  } catch (backendErr) {
-    console.error('❌ Error al registrar reserva en el backend:', backendErr.message);
+  } catch (err) {
+    console.error('❌ Error al insertar reserva:', err.message);
     await client.sendMessage(reservaData.numeroCliente, 'Error al confirmar la reserva, intentá de nuevo.');
   }
 }
 
-async function handlePedido(pedidoData, token, client) {
-  const backendUrl = `${process.env.BACKEND_URL}/api/pedidos/${pedidoData.negocioId}`;
-  try {
-    const backendRes = await axios.post(backendUrl, {
-      numero_cliente: pedidoData.numeroCliente,
-      items: pedidoData.items,
-      estado: 'recibido',
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
 
-    console.log('📥 Respuesta del backend:', backendRes.status, backendRes.data);
-    if (backendRes.status === 200 && backendRes.data.success) {
-      let total = pedidoData.items.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
-      let confirmMessage = "¡Tu pedido ha sido registrado con éxito!\nDetalle del pedido:\n";
-      pedidoData.items.forEach(item => {
-        confirmMessage += `- ${item.nombre} (cantidad: ${item.cantidad})\n`;
+/**
+ * Inserta un pedido en tu backend usando token M2M
+ */
+async function handlePedido(pedidoData, client) {
+  const token = await getApiToken();
+  const backendUrl = `${process.env.BACKEND_URL}/api/pedidos/${pedidoData.negocioId}`;
+
+  try {
+    const res = await axios.post(
+      backendUrl,
+      {
+        numero_cliente: pedidoData.numeroCliente,
+        items: pedidoData.items,
+        estado: 'recibido'
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    console.log('📥 Pedido insertado:', res.status, res.data);
+    if (res.status === 200 && res.data.success) {
+      const total = pedidoData.items
+        .reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+
+      let confirmMsg = `¡Tu pedido ha sido registrado con éxito!\nDetalle del pedido:\n`;
+      pedidoData.items.forEach(i => {
+        confirmMsg += `- ${i.nombre} (cantidad: ${i.cantidad})\n`;
       });
-      confirmMessage += `Total: $${total}\n`;
+      confirmMsg += `Total: $${total}\n`;
 
       try {
-        const pagoRes = await axios.post(`${process.env.BACKEND_URL}/api/mercadopago/create`, {
-          title: `Pedido para ${pedidoData.numeroCliente}`,
-          price: total,
-          quantity: 1
-        });
-
-        if (pagoRes.data.link) {
-          confirmMessage += `\n💳 Podés pagarlo acá: ${pagoRes.data.link}`;
-        } else {
-          confirmMessage += `\n⚠️ No se pudo generar el link de pago.`;
-        }
-      } catch (error) {
-        console.error('❌ Error al generar el link de pago:', error.message);
-        confirmMessage += `\n⚠️ Error al generar el link de pago.`;
+        const pago = await axios.post(
+          `${process.env.BACKEND_URL}/api/mercadopago/create`,
+          { title: `Pedido para ${pedidoData.numeroCliente}`, price: total, quantity: 1 }
+        );
+        confirmMsg += pago.data.link
+          ? `\n💳 Podés pagarlo acá: ${pago.data.link}`
+          : `\n⚠️ No se pudo generar el link de pago.`;
+      } catch (e) {
+        console.error('❌ Error link pago:', e.message);
+        confirmMsg += `\n⚠️ Error al generar el link de pago.`;
       }
 
-      await client.sendMessage(pedidoData.numeroCliente, confirmMessage);
-      console.log('📨 Mensaje de confirmación enviado con link de pago:', confirmMessage);
+      await client.sendMessage(pedidoData.numeroCliente, confirmMsg);
+      console.log('📨 Mensaje de confirmación enviado');
     } else {
-      console.error('❌ Registro de pedido falló en el backend:', backendRes.data);
+      console.error('❌ Backend rechazó el pedido:', res.data);
       await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');
     }
-  } catch (backendErr) {
-    console.error('❌ Error al registrar pedido en el backend:', backendErr.message);
+  } catch (err) {
+    console.error('❌ Error al insertar pedido:', err.message);
     await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');
   }
 }

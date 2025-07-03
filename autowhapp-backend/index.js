@@ -5,6 +5,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const cron = require('node-cron');
 const { clients, initializeClients, initializeClientForNegocio } = require('./whatsapp/client');
+const { getApiToken, handleReserva, handlePedido } = require('./whatsapp/client');
 const { expressjwt: jwt } = require('express-jwt');
 const jwks = require('jwks-rsa');
 const { auth } = require('express-oauth2-jwt-bearer');
@@ -54,7 +55,7 @@ app.options('*', cors(corsOptions)); // Maneja preflight requests
 
 app.use(express.json());
 
-// Configuración de Auth0
+//Configuración de Auth0
 const checkJwt = jwt({
   secret: jwks.expressJwtSecret({
     cache: true,
@@ -66,6 +67,23 @@ const checkJwt = jwt({
   issuer: `https://dev-15eg10mp60jkcv6l.us.auth0.com/`,
   algorithms: ['RS256']
 }).unless({ path: ['/api/qrs', '/ws'], method: 'OPTIONS' }); // Excluye OPTIONS
+
+
+// // Middleware para SPA / Dashboard (audience API v2)
+// const jwtCheckFrontend = auth({
+//   audience: process.env.AUTH0_AUDIENCE,  
+//   issuerBaseURL: `https://${process.env.AUTH0_DOMAIN}/`,
+//   tokenSigningAlg: 'RS256'
+// });
+
+// // Middleware para Bot M2M (audience Autowhapp API)
+const jwtCheckBot = auth({
+  audience: process.env.M2M_AUTH0_AUDIENCE,  
+  issuerBaseURL: `https://${process.env.M2M_AUTH0_DOMAIN}/`,
+  tokenSigningAlg: 'RS256'
+});
+
+
 // Middleware para logging de requests
 app.use((req, res, next) => {
   console.log('Incoming request:', {
@@ -498,7 +516,7 @@ app.get('/api/negocio/:id', checkJwt, async (req, res) => {
 });
 
 // Endpoint para registrar reservas
-app.post('/api/reservas/:negocioId', checkJwt, (req, res) => {
+app.post('/api/reservas/:negocioId', jwtCheckBot, (req, res) => {
   const { negocioId } = req.params;
   const { fecha, hora_inicio, hora_fin, ocupado = 1, cliente, telefono, descripcion } = req.body;
   console.log('Datos recibidos en POST /api/reservas:', { negocioId, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion });
@@ -1428,7 +1446,7 @@ app.get('/api/pedidos/:negocioId', checkJwt, (req, res) => {
   });
 });
 
-app.post('/api/pedidos/:negocioId', checkJwt, (req, res) => {
+app.post('/api/pedidos/:negocioId', jwtCheckBot, (req, res) => {
   const { negocioId } = req.params;
   const { numero_cliente, items } = req.body;
   console.log('Datos recibidos en POST /api/pedidos:', { negocioId, numero_cliente, items });
