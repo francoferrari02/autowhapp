@@ -112,8 +112,8 @@ const handlePlanSelect = async (plan: string) => {
     <AppBar
       position="sticky"
       sx={{
-        background: 'linear-gradient(90deg, rgb(2, 2, 2) 72%, rgb(255, 255, 255) 80%)',
-        boxShadow: '0 6px 24px -8px rgba(50,60,130,0.5), 0 5px 3px 0 rgba(30,40,90,0.5)',
+        background: 'rgb(0, 0, 0)',
+        boxShadow: '0 6px 24px -8px rounded-b-2xl rgba(50,60,130,0.5), 0 5px 3px 0 rgba(30,40,90,0.5)',
         zIndex: 1300,
       }}
     >

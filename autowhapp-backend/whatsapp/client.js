@@ -645,5 +645,6 @@ module.exports = {
   identificarNegocio,
   identificarNegocioPorId,
   handlePedido,
-  handleReserva
+  handleReserva,
+  initializeClientForNegocio
 };

@@ -4,13 +4,18 @@ const path = require('path');
 const cors = require('cors');
 const { Pool } = require('pg');
 const cron = require('node-cron');
-const { clients, initializeClients } = require('./whatsapp/client');
+const { clients, initializeClients, initializeClientForNegocio } = require('./whatsapp/client');
 const { expressjwt: jwt } = require('express-jwt');
 const jwks = require('jwks-rsa');
 const { auth } = require('express-oauth2-jwt-bearer');
 const axios = require('axios');
 const WebSocket = require('ws');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const fs = require('fs');
+
+
+ 
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -787,8 +792,7 @@ app.put('/api/pedido/:id/estado', checkJwt, (req, res) => {
   });
 });
 
-// Otros endpoints
-// index.js
+//MANEJO QRS (CONEXIÔN WHATSAPP)
 app.get('/api/qrs', (req, res) => {
   db.query('SELECT id, nombre FROM negocios', [], (err, negocios) => {
     if (err) {
@@ -804,11 +808,117 @@ app.get('/api/qrs', (req, res) => {
         authenticated: clients[negocioId]?.authenticated || false,
         nombre: negocio.nombre
       };
-    }).filter(client => !client.authenticated && client.qr); // Solo devolver QR si no está autenticado y tiene QR
+    }); // Eliminamos el .filter()
     console.log('QRs generados:', qrs);
     res.json(qrs);
   });
 });
+
+app.get('/api/negocio/:negocioId/qr', checkJwt, async (req, res) => {
+  const { negocioId } = req.params;
+  const auth0Id = req.auth.sub;
+
+  try {
+    const client = await db.connect();
+    const userResult = await client.query(
+      'SELECT n.id FROM negocios n JOIN users u ON n.user_id = u.id WHERE n.id = $1 AND u.auth0_id = $2',
+      [negocioId, auth0Id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(403).json({ error: 'No autorizado para acceder a este negocio' });
+    }
+
+    const clientObj = clients[negocioId];
+    if (!clientObj) {
+      return res.status(404).json({ error: 'Cliente no inicializado para este negocio' });
+    }
+
+    res.json({ qr: clientObj.qr, authenticated: clientObj.authenticated });
+  } catch (err) {
+    console.error('Error al obtener QR:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+
+
+app.post('/api/negocio/:negocioId/disconnect', checkJwt, async (req, res) => {
+  const { negocioId } = req.params;
+  const auth0Id = req.auth.sub;
+  let dbClient;
+
+  try {
+    // 1) Conectar a la base de datos
+    dbClient = await db.connect();
+
+    // 2) Validar permisos del usuario
+    const permiso = await dbClient.query(
+      `SELECT 1
+       FROM negocios n
+       JOIN users u ON n.user_id = u.id
+       WHERE n.id = $1 AND u.auth0_id = $2`,
+      [negocioId, auth0Id]
+    );
+    if (permiso.rowCount === 0) {
+      return res.status(403).json({ error: 'No autorizado para este negocio' });
+    }
+
+    // 3) Instancia de WhatsApp
+    const waClientObj = clients[negocioId];
+    if (!waClientObj || !waClientObj.client) {
+      return res.status(404).json({ error: 'Cliente de WhatsApp no encontrado' });
+    }
+
+    // 4) Logout + destroy
+    await waClientObj.client.logout();
+    await waClientObj.client.destroy();
+
+    // 5) Borrar la carpeta de sesión en disco
+    const authPath = path.join(__dirname, 'wwebjs_auth', `session_${negocioId}`);
+    if (fs.existsSync(authPath)) {
+      fs.rmSync(authPath, { recursive: true, force: true });
+    }
+
+    // 6) Limpiar memoria
+    delete clients[negocioId];
+
+    // 7) Volver a cargar datos completos del negocio
+    const negocioRes = await dbClient.query(
+      `SELECT id, nombre, numero_telefono, grupo_id, tipo_negocio, localidad,
+              direccion, horarios, contexto, estado_bot, modulo_pedidos,
+              modulo_reservas, modulo_recordatorios, modulo_analiticas,
+              modulo_pagos, plan, appointment_duration, break_between,
+              hora_inicio_default, hora_fin_default, user_id
+       FROM negocios
+       WHERE id = $1`,
+      [negocioId]
+    );
+    if (negocioRes.rowCount === 0) {
+      // Esto nunca debería pasar porque ya validaste antes, pero por si acaso:
+      return res.status(404).json({ error: 'Negocio no encontrado tras desconexión' });
+    }
+    const negocio = negocioRes.rows[0];
+
+    // 8) Inicializar un cliente NUEVO que emita QR otra vez
+    initializeClientForNegocio(negocio);
+
+    // 9) OK
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error('Error al desconectar:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+
+  } finally {
+    if (dbClient) dbClient.release();
+  }
+});
+
+
+
 app.post('/api/actualizar-estado-bot', checkJwt, async (req, res) => {
   const { negocioId, estadoBot } = req.body;
   const auth0Id = req.auth.sub;
@@ -1944,11 +2054,11 @@ app.use((err, req, res, next) => {
 
 console.log('Current clients:', clients);
 
-function initializeClientForNegocio(negocio) {
-  const negocioId = negocio.id;
-  console.log(`Initializing client for negocio ${negocioId}: ${negocio.nombre}`);
+// function initializeClientForNegocio(negocio) {
+//   const negocioId = negocio.id;
+//   console.log(`Initializing client for negocio ${negocioId}: ${negocio.nombre}`);
 
-  // Delegate initialization to client.js to avoid duplication
-  const { initializeClientForNegocio: initClient } = require('./whatsapp/client');
-  initClient(negocio);
-}
+//   // Delegate initialization to client.js to avoid duplication
+//   const { initializeClientForNegocio: initClient } = require('./whatsapp/client');
+//   initClient(negocio);
+// }

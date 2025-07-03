@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNegocio } from '../NegocioContext';
 import { toast } from '@/hooks/use-toast';
+import { useAuth0 } from '@auth0/auth0-react';
+import axios from 'axios';
 
-interface QRResponse {
-  qr: string;
-  negocioId: string;
+interface QRData {
+  negocioId: number;
+  qr: string | null;
   authenticated: boolean;
+  nombre: string;
 }
 
 const WhatsAppConnection: React.FC = () => {
   const { negocioId } = useNegocio();
+  const { getAccessTokenSilently } = useAuth0();
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,8 +21,8 @@ const WhatsAppConnection: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [successMessage, setSuccessMessage] = useState(false);
 
-  // Simulate API call to generate QR
-  const generateQR = useCallback(async () => {
+  // Obtener QR desde el backend usando /api/qrs
+  const fetchQR = useCallback(async () => {
     if (!negocioId) {
       toast({
         title: "Error",
@@ -30,43 +34,92 @@ const WhatsAppConnection: React.FC = () => {
 
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const mockQR = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=whatsapp-business-${negocioId}-${Date.now()}`;
-      setQrCode(mockQR);
-      setShowQR(true);
-      setConnectionStatus('connecting');
-      startConnectionPolling();
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      const response = await axios.get<QRData[]>(`${process.env.REACT_APP_API_URL}/api/qrs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const qrs = response.data;
+      const qrData = qrs.find(qr => qr.negocioId === negocioId);
+
+      if (qrData) {
+        if (qrData.authenticated) {
+          setIsConnected(true);
+          setConnectionStatus('connected');
+          setShowQR(false);
+          toast({
+            title: "Conectado",
+            description: "WhatsApp ya está conectado",
+            variant: "default",
+          });
+        } else if (qrData.qr) {
+          setQrCode(qrData.qr);
+          setShowQR(true);
+          setConnectionStatus('connecting');
+          startConnectionPolling();
+        } else {
+          toast({
+            title: "Error",
+            description: "No se pudo generar el código QR",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "No se encontró información para este negocio",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
-      console.error('Error generating QR:', error);
+      console.error('Error fetching QR:', error);
       toast({
         title: "Error",
-        description: "No se pudo generar el código QR. Intenta de nuevo.",
+        description: "No se pudo obtener el código QR. Intenta de nuevo.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  }, [negocioId]);
+  }, [negocioId, getAccessTokenSilently]);
 
-  // Simulate connection polling
+  // Polling para verificar el estado de conexión
   const startConnectionPolling = useCallback(() => {
-    const pollInterval = setInterval(() => {
-      const randomDelay = Math.random() * 5000 + 10000;
-      setTimeout(() => {
-        setIsConnected(true);
-        setConnectionStatus('connected');
-        setShowQR(false);
-        setSuccessMessage(true);
-        clearInterval(pollInterval);
-        toast({
-          title: "¡Éxito!",
-          description: "WhatsApp conectado exitosamente",
-          variant: "default",
+    const pollInterval = setInterval(async () => {
+      try {
+        const token = await getAccessTokenSilently({
+          authorizationParams: {
+            audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+          }
         });
-        setTimeout(() => setSuccessMessage(false), 2000);
-      }, randomDelay);
-    }, 1000);
+        const response = await axios.get<QRData[]>(`${process.env.REACT_APP_API_URL}/api/qrs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const qrs = response.data;
+        const qrData = qrs.find(qr => qr.negocioId === negocioId);
 
+        if (qrData && qrData.authenticated) {
+          setIsConnected(true);
+          setConnectionStatus('connected');
+          setShowQR(false);
+          setSuccessMessage(true);
+          clearInterval(pollInterval);
+          toast({
+            title: "¡Éxito!",
+            description: "WhatsApp conectado exitosamente",
+            variant: "default",
+          });
+          setTimeout(() => setSuccessMessage(false), 2000);
+        }
+      } catch (error) {
+        console.error('Error checking connection status:', error);
+      }
+    }, 2000); // Verifica cada 2 segundos
+
+    // Timeout de 30 segundos
     setTimeout(() => {
       if (!isConnected) {
         clearInterval(pollInterval);
@@ -80,13 +133,20 @@ const WhatsAppConnection: React.FC = () => {
         });
       }
     }, 30000);
-  }, [isConnected]);
+  }, [negocioId, getAccessTokenSilently, isConnected]);
 
-  // Handle disconnect
+  // Manejar desconexión
   const handleDisconnect = async () => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}/disconnect`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setIsConnected(false);
       setConnectionStatus('disconnected');
       setQrCode(null);
@@ -108,17 +168,17 @@ const WhatsAppConnection: React.FC = () => {
     }
   };
 
-  // Check initial connection status
+  // Verificar estado inicial al montar el componente
   useEffect(() => {
-    if (negocioId) {
-      const isAlreadyConnected = Math.random() > 0.7;
-      if (isAlreadyConnected) {
-        setIsConnected(true);
-        setConnectionStatus('connected');
+    const checkConnection = async () => {
+      if (negocioId) {
+        await fetchQR();
       }
-    }
-  }, [negocioId]);
+    };
+    checkConnection();
+  }, [negocioId, fetchQR]);
 
+  // Componentes de UI
   const LoadingSpinner = () => (
     <div className="flex items-center justify-center p-4">
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin-slow"></div>
@@ -203,7 +263,7 @@ const WhatsAppConnection: React.FC = () => {
         </div>
       </div>
       <button
-        onClick={generateQR}
+        onClick={fetchQR}
         disabled={loading}
         className="w-full inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-poppins font-semibold text-sm rounded-lg transition-all duration-200 transformar hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
       >
