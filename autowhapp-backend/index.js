@@ -474,7 +474,18 @@ app.get('/api/negocio/:id', checkJwt, async (req, res) => {
       return res.status(404).json({ error: 'Negocio no encontrado' });
     }
 
-    res.json(result.rows[0]);
+    const negocio = result.rows[0];
+
+    // Obtener las reservas del negocio
+    const reservasResult = await db.query(
+      'SELECT * FROM reservas WHERE negocio_id = $1 ORDER BY fecha, hora_inicio',
+      [id]
+    );
+
+    // Agregar las reservas al objeto del negocio
+    negocio.reservas = reservasResult.rows;
+
+    res.json(negocio);
   } catch (err) {
     console.error('Error al obtener negocio:', err);
     res.status(500).json({ error: err.message });
@@ -552,15 +563,16 @@ app.post('/api/reservas/:negocioId', checkJwt, (req, res) => {
         }
 
         db.query(
-          'INSERT INTO reservas (negocio_id, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+          'INSERT INTO reservas (negocio_id, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
           [negocioId, fecha, hora_inicio, hora_fin, ocupado ? 1 : 0, cliente || '', telefono || '', descripcion || ''],
-          function (err) {
+          function (err, result) {
             if (err) {
               console.error('Error al registrar reserva:', err.message);
               return res.status(500).json({ error: err.message });
             }
-            console.log('Reserva registrada con éxito, ID:', this.lastID);
-            res.json({ success: true, id: this.lastID });
+            const insertedId = result.rows[0].id;
+            console.log('Reserva registrada con éxito, ID:', insertedId);
+            res.json({ success: true, id: insertedId });
           }
         );
       }
