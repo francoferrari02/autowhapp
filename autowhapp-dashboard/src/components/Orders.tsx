@@ -338,9 +338,9 @@ const Orders: React.FC = () => {
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', fontFamily: 'Poppins, sans-serif' }}>
-  <Card sx={{ p: 3, mb: 4, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: '4xl', width: 'full' }}>
+  <Card sx={{ p: '48px', mb: 4, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', borderRadius: '32px', width: 'full' }}>
     <Typography variant="subtitle1" fontWeight="bold" fontFamily="Poppins, sans-serif" mb={1}>
-      Mensaje Pedido Preparando
+      Mensaje de Pedido Preparando
     </Typography>
     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
       <Box sx={{ width: 8, height: '100%', backgroundColor: '#F59E0B', mr: 0 }} />
@@ -362,7 +362,7 @@ const Orders: React.FC = () => {
       />
     </Box>
     <Typography variant="subtitle1" fontWeight="bold" fontFamily="Poppins, sans-serif" mb={1}>
-      Mensaje Pedido Enviado
+      Mensaje de Pedido Enviado
     </Typography>
     <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
       <Box sx={{ width: 8, height: '100%', backgroundColor: '#34C759', mr: 0 }} />
@@ -399,7 +399,7 @@ const Orders: React.FC = () => {
     </Button>
   </Card>
 
-  <Box sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: '4xl', boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 'full' }}>
+  <Box sx={{ mb: 3, p: '48px', backgroundColor: 'white', borderRadius: '32px', boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 'full' }}>
     <TextField
       placeholder="Buscar pedidos por teléfono..."
       variant="outlined"

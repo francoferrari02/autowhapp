@@ -138,29 +138,31 @@ const AnalyticsPage: React.FC = () => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#FF6384', '#36A2EB', '#FFCE56'];
 
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', flexGrow: 1 }}>
-      <Box flexGrow={1} sx={{ padding: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '1rem' }}>
-          <h2 className="text-2xl font-poppins font-bold text-white" style={{ marginTop: '0.5rem' }}>
+    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-2xl font-poppins font-bold text-white mt-2">
             Analíticas
           </h2>
-          <Box sx={{ backgroundColor: 'white', padding: 2, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
-            <FormControl variant="outlined" sx={{ minWidth: 150 }}>
-              <InputLabel>Mes y Año</InputLabel>
-              <Select
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value as string)}
-                label="Mes y Año"
-              >
-                {dateOptions.map((date) => (
-                  <MenuItem key={date} value={date}>
-                    {new Date(date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
+          <div className="flex-1 flex justify-end max-w-[480px]">
+            <Box sx={{ backgroundColor: 'white', padding: 2, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
+              <FormControl variant="outlined" sx={{ minWidth: 150 }}>
+                <InputLabel>Mes y Año</InputLabel>
+                <Select
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value as string)}
+                  label="Mes y Año"
+                >
+                  {dateOptions.map((date) => (
+                    <MenuItem key={date} value={date}>
+                      {new Date(date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </div>
+        </div>
         <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
           {error && <Typography color="error">{error}</Typography>}
 
@@ -232,8 +234,8 @@ const AnalyticsPage: React.FC = () => {
             </Box>
           </Box>
         </Box>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };
 

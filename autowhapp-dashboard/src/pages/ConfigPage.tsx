@@ -88,18 +88,20 @@ const ConfigPage: React.FC = () => {
 
   return (
     <div className="flex-grow bg-blue-600 p-6 min-h-screen">
-      <div className="mb-6">
-        <h2 className="text-2xl font-poppins font-bold text-white mt-3">
-          Hola, {formatName(user?.given_name)}!
-        </h2>
-      </div>
-      <WhatsAppConnection />
-      <div className="flex gap-3 flex-wrap">
-        <div className="flex-1 md:flex-[0_0_100%]">
-          <MainConfig negocioId={negocioId} />
+      <div className="max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-2xl font-poppins font-bold text-white mt-2">
+            Hola, {formatName(user?.given_name)}!
+          </h2>
         </div>
-        <div className="flex-1 md:flex-[0_0_100%]">
-          <Products negocioId={negocioId} />
+        <WhatsAppConnection />
+        <div className="flex gap-3 flex-wrap">
+          <div className="flex-1 md:flex-[0_0_100%]">
+            <MainConfig negocioId={negocioId} />
+          </div>
+          <div className="flex-1 md:flex-[0_0_100%]">
+            <Products negocioId={negocioId} />
+          </div>
         </div>
       </div>
     </div>
