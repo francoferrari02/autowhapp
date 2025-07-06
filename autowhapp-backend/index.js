@@ -1037,6 +1037,7 @@ app.post('/api/actualizar-modulo-recordatorios', checkJwt, (req, res) => {
 });
 
 const mercadoPago = require('./mercado-pago');
+const sendMail = require('./gconection/mailer');
 
 app.use(express.json());
 
@@ -2047,6 +2048,25 @@ app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
     console.log('Conexión a la base de datos liberada');
   }
 });
+
+app.post('/api/sendMail'), checkJwt, async (req, res) => {
+  console.log('Solicitud PUT recibida para /api/sendMail');
+
+  const { mail, asunto, texto } = req.body;
+
+  const sendMail = require('./gconection/mailer');
+
+  sendMail(mail, asunto, texto);
+}
+
+app.post('/api/saveEvent'), checkJwt, async (req, res) => {
+  console.log('Solicitud PUT recibida para /api/sendMail');
+
+  const { gmail, startDate, startHour, endDate, endHour, name, description, place, repetition, colorId } = req.body;
+  const saveEvent = require('./calendar');
+
+  saveEvent(gmail, startDate, startHour, endDate, endHour, name, description, place, repetition, colorId);
+}
 
 // Helper function to get ISO week number
 function getWeekNumber(date) {
