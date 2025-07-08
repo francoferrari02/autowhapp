@@ -275,7 +275,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           onChange={handleInputChange}
         />
         <div className="flex flex-col gap-1">
-          <label htmlFor="type" className="font-semibold font-poppins">Tipo de Negocio</label>
+          <label htmlFor="type" className="text-gray-700 font-semibold font-poppins">Tipo de Negocio</label>
           <select
             id="type"
             value={businessTypes.some(bt => bt.value === business.type) ? business.type : 'personalizado'}

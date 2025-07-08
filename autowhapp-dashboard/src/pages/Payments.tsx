@@ -80,7 +80,29 @@ const Payments: React.FC = () => {
   const pagado = invoices.filter((f) => f.status === "Pagado").reduce((acc, f) => acc + f.amount, 0);
   const pendiente = total - pagado;
 
-  const mockChartData: { mes: string; ingresos: number }[] = [];
+  // Generar datos del gráfico basados en las facturas
+  const generateChartData = () => {
+    const monthlyData: { [key: string]: number } = {};
+    
+    invoices.forEach(invoice => {
+      if (invoice.date && invoice.status === "Pagado") {
+        const date = new Date(invoice.date);
+        const monthKey = date.toLocaleDateString('es-AR', { year: 'numeric', month: 'long' });
+        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + invoice.amount;
+      }
+    });
+
+    return Object.entries(monthlyData).map(([mes, ingresos]) => ({
+      mes,
+      ingresos
+    })).sort((a, b) => {
+      const dateA = new Date(a.mes + " 1");
+      const dateB = new Date(b.mes + " 1");
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+
+  const chartData = generateChartData();
 
   return (
     <div className="flex-grow bg-blue-600 p-6 min-h-screen">
@@ -120,9 +142,13 @@ const Payments: React.FC = () => {
             </Typography>
             <Box sx={{ width: '100%', height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockChartData}>
+                <BarChart data={chartData}>
                   <XAxis dataKey="mes" />
-                  <YAxis tickFormatter={(v) => `$${v / 1_000_000}M`} />
+                  <YAxis tickFormatter={(v) => {
+                    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+                    if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
+                    return `$${v}`;
+                  }} />
                   <Tooltip
                     formatter={(v: number) => `$${v.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`}
                     labelFormatter={(label) => `Mes: ${label}`}
