@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS negocios (
   modulo_pagos INTEGER DEFAULT 0,       -- Agregado para el módulo de pagos
   plan TEXT DEFAULT 'Plan Servicios',   -- Nuevo campo para el plan
   appointment_duration INTEGER DEFAULT 60,
-  break_between INTEGER DEFAULT 15,
+  break_between INTEGER DEFAULT 0,
   hora_inicio_default TEXT DEFAULT '09:00',
   hora_fin_default TEXT DEFAULT '18:00',
   user_id INTEGER NOT NULL REFERENCES users(id),

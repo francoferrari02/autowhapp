@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, TextField, Modal } from '@mui/material';
+import { Box, Typography, Button, TextField, Modal, Tabs, Tab } from '@mui/material';
 import Calendar from '../components/Calendar';
+import ReservationList from '../components/ReservationList';
 import ModuleStatus from '../components/ModuleStatus';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import { CalendarEvent } from '../types';
+import PeopleIcon from '@mui/icons-material/People';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
+import { CalendarEvent, Reservation } from '../types';
 import { useAuth0 } from '@auth0/auth0-react';
 import { DatePicker, TimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface NegocioResponse {
   modulo_reservas: boolean;
@@ -24,11 +28,14 @@ interface NegocioResponse {
     cliente?: string;
     telefono?: string;
     descripcion?: string;
+    mesa?: string;
+    personas?: number;
   }[];
   appointment_duration?: number;
   break_between?: number;
   hora_inicio_default?: string;
   hora_fin_default?: string;
+  reservation_capacity?: number; // Nueva propiedad para capacidad
 }
 
 const ReservationsPage: React.FC = () => {
@@ -37,14 +44,18 @@ const ReservationsPage: React.FC = () => {
   const [moduloReservas, setModuloReservas] = useState<boolean>(false);
   const [appointmentHours, setAppointmentHours] = useState<Record<string, { open: string; close: string }>>({});
   const [reservas, setReservas] = useState<CalendarEvent[]>([]);
+  const [reservasList, setReservasList] = useState<Reservation[]>([]);
   const [message, setMessage] = useState<string>('');
   const [appointmentDuration, setAppointmentDuration] = useState<number>(60);
-  const [breakBetween, setBreakBetween] = useState<number>(15);
+  const [breakBetween, setBreakBetween] = useState<number>(0);
+  const [reservationCapacity, setReservationCapacity] = useState<number>(1); // Nueva configuración
   const [horaInicioDefault, setHoraInicioDefault] = useState<string>('09:00');
   const [horaFinDefault, setHoraFinDefault] = useState<string>('18:00');
   const [openModal, setOpenModal] = useState<boolean>(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [openAddModal, setOpenAddModal] = useState<boolean>(false);
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+  const [viewMode, setViewMode] = useState<number>(0); // 0: Lista, 1: Calendario
   const [newReservation, setNewReservation] = useState({
     fecha: null as Date | null,
     hora_inicio: null as Date | null,
@@ -52,6 +63,8 @@ const ReservationsPage: React.FC = () => {
     cliente: '',
     telefono: '',
     descripcion: '',
+    mesa: '', // Nuevo campo
+    personas: 1, // Nuevo campo
   });
 
   const parseTime = (timeStr: string): Date => {
@@ -77,11 +90,11 @@ const ReservationsPage: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const fetchedReservas = res.data.reservas
+      const fetchedReservasForCalendar = res.data.reservas
         ?.filter((reserva) => reserva.ocupado === 1)
         .map((reserva) => ({
           id: reserva.id.toString(),
-          title: 'Reserva',
+          title: `${reserva.cliente} ${reserva.mesa ? `(Mesa ${reserva.mesa})` : ''}`,
           start: new Date(`${reserva.fecha}T${reserva.hora_inicio}:00`),
           end: new Date(`${reserva.fecha}T${reserva.hora_fin}:00`),
           cliente: reserva.cliente,
@@ -90,7 +103,23 @@ const ReservationsPage: React.FC = () => {
           backgroundColor: '#FF5733',
         })) || [];
       
-      setReservas(fetchedReservas);
+      const fetchedReservasList = res.data.reservas
+        ?.filter((reserva) => reserva.ocupado === 1)
+        .map((reserva) => ({
+          id: reserva.id,
+          fecha: reserva.fecha,
+          hora_inicio: reserva.hora_inicio,
+          hora_fin: reserva.hora_fin,
+          cliente: reserva.cliente || '',
+          telefono: reserva.telefono || '',
+          descripcion: reserva.descripcion || '',
+          ocupado: reserva.ocupado,
+          mesa: reserva.mesa,
+          personas: reserva.personas,
+        })) || [];
+      
+      setReservas(fetchedReservasForCalendar);
+      setReservasList(fetchedReservasList);
     } catch (err) {
       console.error('Error al cargar reservas:', err);
     }
@@ -143,11 +172,11 @@ const ReservationsPage: React.FC = () => {
           }
         }
 
-        const mappedReservas = res.data.reservas
+        const mappedReservasForCalendar = res.data.reservas
           ?.filter((reserva) => reserva.ocupado === 1)
           .map((reserva) => ({
             id: reserva.id.toString(),
-            title: 'Reserva',
+            title: `${reserva.cliente} ${reserva.mesa ? `(Mesa ${reserva.mesa})` : ''}`,
             start: new Date(`${reserva.fecha}T${reserva.hora_inicio}:00`),
             end: new Date(`${reserva.fecha}T${reserva.hora_fin}:00`),
             cliente: reserva.cliente,
@@ -155,10 +184,28 @@ const ReservationsPage: React.FC = () => {
             descripcion: reserva.descripcion,
             backgroundColor: '#FF5733',
           })) || [];
-        setReservas(mappedReservas);
+        
+        const mappedReservasList = res.data.reservas
+          ?.filter((reserva) => reserva.ocupado === 1)
+          .map((reserva) => ({
+            id: reserva.id,
+            fecha: reserva.fecha,
+            hora_inicio: reserva.hora_inicio,
+            hora_fin: reserva.hora_fin,
+            cliente: reserva.cliente || '',
+            telefono: reserva.telefono || '',
+            descripcion: reserva.descripcion || '',
+            ocupado: reserva.ocupado,
+            mesa: reserva.mesa,
+            personas: reserva.personas,
+          })) || [];
+        
+        setReservas(mappedReservasForCalendar);
+        setReservasList(mappedReservasList);
 
         setAppointmentDuration(res.data.appointment_duration || 60);
-        setBreakBetween(res.data.break_between || 15);
+        setBreakBetween(res.data.break_between || 0);
+        setReservationCapacity(res.data.reservation_capacity || 1);
         setHoraInicioDefault(res.data.hora_inicio_default || '09:00');
         setHoraFinDefault(res.data.hora_fin_default || '18:00');
       } catch (err) {
@@ -196,7 +243,50 @@ const ReservationsPage: React.FC = () => {
   };
 
   const handleAddReservation = () => {
+    setEditingReservation(null);
+    setNewReservation({ fecha: null, hora_inicio: null, hora_fin: null, cliente: '', telefono: '', descripcion: '', mesa: '', personas: 1 });
     setOpenAddModal(true);
+  };
+
+  const handleEditReservation = (reservation: Reservation) => {
+    setEditingReservation(reservation);
+    setNewReservation({
+      fecha: new Date(reservation.fecha),
+      hora_inicio: parseTime(reservation.hora_inicio),
+      hora_fin: parseTime(reservation.hora_fin),
+      cliente: reservation.cliente,
+      telefono: reservation.telefono,
+      descripcion: reservation.descripcion,
+      mesa: reservation.mesa || '',
+      personas: reservation.personas || 1,
+    });
+    setOpenAddModal(true);
+  };
+
+  const handleCancelReservationFromList = async (reservation: Reservation) => {
+    if (!negocioId) {
+      setMessage('Error: No se pudo identificar la reserva para cancelar');
+      return;
+    }
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
+        }
+      });
+      await axios.delete(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}/${reservation.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Refrescar las reservas desde el servidor
+      await fetchReservas();
+      
+      setMessage('Reserva cancelada con éxito');
+    } catch (err: any) {
+      console.error('Error al cancelar reserva:', err);
+      const errorMessage = err.response?.data?.error || 'Error al cancelar la reserva';
+      setMessage(errorMessage);
+    }
   };
 
   const handleSaveReservation = async () => {
@@ -210,7 +300,7 @@ const ReservationsPage: React.FC = () => {
       const horaInicioStr = format(newReservation.hora_inicio, 'HH:mm');
       const horaFinStr = format(newReservation.hora_fin, 'HH:mm');
       
-      console.log('Enviando reserva:', {
+      const reservationData = {
         fecha: fechaStr,
         hora_inicio: horaInicioStr,
         hora_fin: horaFinStr,
@@ -218,7 +308,11 @@ const ReservationsPage: React.FC = () => {
         cliente: newReservation.cliente,
         telefono: newReservation.telefono,
         descripcion: newReservation.descripcion,
-      });
+        mesa: newReservation.mesa,
+        personas: newReservation.personas,
+      };
+      
+      console.log('Enviando reserva:', reservationData);
 
       const token = await getAccessTokenSilently({
         authorizationParams: {
@@ -226,30 +320,33 @@ const ReservationsPage: React.FC = () => {
         }
       });
       
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}`, {
-        fecha: fechaStr,
-        hora_inicio: horaInicioStr,
-        hora_fin: horaFinStr,
-        ocupado: 1,
-        cliente: newReservation.cliente,
-        telefono: newReservation.telefono,
-        descripcion: newReservation.descripcion,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      let res;
+      if (editingReservation) {
+        // Editando reserva existente
+        res = await axios.put(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}/${editingReservation.id}`, reservationData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setMessage('Reserva actualizada con éxito');
+      } else {
+        // Creando nueva reserva
+        res = await axios.post(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}`, reservationData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setMessage('Reserva añadida con éxito');
+      }
       
       console.log('Respuesta del servidor:', res.data);
       
       // Refrescar las reservas desde el servidor
       await fetchReservas();
       
-      setMessage('Reserva añadida con éxito');
       setOpenAddModal(false);
-      setNewReservation({ fecha: null, hora_inicio: null, hora_fin: null, cliente: '', telefono: '', descripcion: '' });
+      setEditingReservation(null);
+      setNewReservation({ fecha: null, hora_inicio: null, hora_fin: null, cliente: '', telefono: '', descripcion: '', mesa: '', personas: 1 });
     } catch (err: any) {
-      console.error('Error al añadir reserva:', err);
+      console.error('Error al guardar reserva:', err);
       console.error('Error response:', err.response?.data);
-      setMessage(err.response?.data?.error || 'Error al añadir reserva');
+      setMessage(err.response?.data?.error || 'Error al guardar reserva');
     }
   };
 
@@ -302,7 +399,8 @@ const ReservationsPage: React.FC = () => {
 
   const handleCloseAddModal = () => {
     setOpenAddModal(false);
-    setNewReservation({ fecha: null, hora_inicio: null, hora_fin: null, cliente: '', telefono: '', descripcion: '' });
+    setEditingReservation(null);
+    setNewReservation({ fecha: null, hora_inicio: null, hora_fin: null, cliente: '', telefono: '', descripcion: '', mesa: '', personas: 1 });
   };
 
   const saveSettings = async () => {
@@ -316,6 +414,7 @@ const ReservationsPage: React.FC = () => {
       await axios.put(`${process.env.REACT_APP_API_URL}/api/reservas/${negocioId}`, {
         appointmentDuration,
         breakBetween,
+        reservation_capacity: reservationCapacity,
         hora_inicio_default: horaInicioDefault,
         hora_fin_default: horaFinDefault,
       }, {
@@ -329,7 +428,7 @@ const ReservationsPage: React.FC = () => {
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
       <div className="flex-grow bg-blue-600 p-6 min-h-screen">
         <div className="max-w-[1200px] mx-auto">
           <div className="flex justify-between items-start mb-4">
@@ -350,7 +449,7 @@ const ReservationsPage: React.FC = () => {
                 <AccessTimeIcon sx={{ color: '#2563EB' }} />
                 <Typography sx={{ fontFamily: 'Poppins', fontWeight: 'bold' }}>Duración y Espaciado</Typography>
               </Box>
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                 <TextField
                   label="Duración de la cita (minutos)"
                   type="number"
@@ -366,6 +465,16 @@ const ReservationsPage: React.FC = () => {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBreakBetween(Number(e.target.value) || 0)}
                   sx={{ width: 200 }}
                   inputProps={{ min: 0, step: 1 }}
+                  helperText="Tiempo de pausa entre reservas (0 = sin pausa)"
+                />
+                <TextField
+                  label="Reservas simultáneas máximas"
+                  type="number"
+                  value={reservationCapacity}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReservationCapacity(Number(e.target.value) || 1)}
+                  sx={{ width: 200 }}
+                  inputProps={{ min: 1, step: 1 }}
+                  helperText="Cuántas reservas pueden coincidir en el mismo horario"
                 />
               </Box>
               <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -374,7 +483,7 @@ const ReservationsPage: React.FC = () => {
               </Box>
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TimePicker
-                  label="Hora de inicio (HH:MM)"
+                  label="Hora de inicio"
                   value={horaInicioDefault ? parseTime(horaInicioDefault) : null}
                   onChange={(newValue) => {
                     if (newValue) {
@@ -386,7 +495,7 @@ const ReservationsPage: React.FC = () => {
                   slotProps={{ textField: { sx: { width: 200 } } }}
                 />
                 <TimePicker
-                  label="Hora de fin (HH:MM)"
+                  label="Hora de fin"
                   value={horaFinDefault ? parseTime(horaFinDefault) : null}
                   onChange={(newValue) => {
                     if (newValue) {
@@ -404,8 +513,11 @@ const ReservationsPage: React.FC = () => {
               Reservas Programadas
             </Typography>
             <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 4, p: 3 }}>
-              <Calendar events={reservas} onEventClick={handleEventClick} />
-              <Box sx={{ mt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Tabs value={viewMode} onChange={(e, newValue) => setViewMode(newValue)}>
+                  <Tab label="Vista Lista" sx={{ fontFamily: 'Poppins' }} />
+                  <Tab label="Vista Calendario" sx={{ fontFamily: 'Poppins' }} />
+                </Tabs>
                 <Button
                   onClick={handleAddReservation}
                   sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
@@ -413,6 +525,17 @@ const ReservationsPage: React.FC = () => {
                   Añadir Reserva
                 </Button>
               </Box>
+              
+              {viewMode === 0 ? (
+                <ReservationList 
+                  reservations={reservasList}
+                  onEditReservation={handleEditReservation}
+                  onCancelReservation={handleCancelReservationFromList}
+                  capacity={reservationCapacity}
+                />
+              ) : (
+                <Calendar events={reservas} onEventClick={handleEventClick} />
+              )}
             </Box>
 
             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
@@ -498,22 +621,23 @@ const ReservationsPage: React.FC = () => {
               }}
             >
               <Typography variant="h6" sx={{ fontFamily: 'Poppins', fontWeight: 'bold', mb: 2 }}>
-                Añadir Nueva Reserva
+                {editingReservation ? 'Editar Reserva' : 'Añadir Nueva Reserva'}
               </Typography>
               <DatePicker
-                label="Fecha (DD-MM-YYYY)"
+                label="Fecha"
                 value={newReservation.fecha}
                 onChange={(newValue) => setNewReservation({ ...newReservation, fecha: newValue })}
+                format="dd/MM/yyyy"
                 slotProps={{ textField: { fullWidth: true, sx: { mb: 2 } } }}
               />
               <TimePicker
-                label="Hora de Inicio (HH:MM)"
+                label="Hora de Inicio"
                 value={newReservation.hora_inicio}
                 onChange={(newValue) => setNewReservation({ ...newReservation, hora_inicio: newValue })}
                 slotProps={{ textField: { fullWidth: true, sx: { mb: 2 } } }}
               />
               <TimePicker
-                label="Hora de Fin (HH:MM)"
+                label="Hora de Fin"
                 value={newReservation.hora_fin}
                 onChange={(newValue) => setNewReservation({ ...newReservation, hora_fin: newValue })}
                 slotProps={{ textField: { fullWidth: true, sx: { mb: 2 } } }}
@@ -532,22 +656,48 @@ const ReservationsPage: React.FC = () => {
                 fullWidth
                 sx={{ mb: 2 }}
               />
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <TextField
+                  label="Número de Personas"
+                  type="number"
+                  value={newReservation.personas}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, personas: Number(e.target.value) || 1 })}
+                  inputProps={{ min: 1, step: 1 }}
+                  sx={{ flex: 1 }}
+                  InputProps={{
+                    startAdornment: <PeopleIcon sx={{ color: '#666', mr: 1 }} />
+                  }}
+                />
+                <TextField
+                  label="Mesa (opcional)"
+                  value={newReservation.mesa}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, mesa: e.target.value })}
+                  sx={{ flex: 1 }}
+                  InputProps={{
+                    startAdornment: <RestaurantIcon sx={{ color: '#666', mr: 1 }} />
+                  }}
+                />
+              </Box>
               <TextField
                 label="Descripción"
                 value={newReservation.descripcion}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewReservation({ ...newReservation, descripcion: e.target.value })}
                 fullWidth
                 sx={{ mb: 2 }}
+                multiline
+                rows={2}
               />
-              <Button
-                onClick={handleSaveReservation}
-                sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
-              >
-                Guardar Reserva
-              </Button>
-              <Button onClick={handleCloseAddModal} sx={{ mt: 2 }}>
-                Cancelar
-              </Button>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                <Button onClick={handleCloseAddModal}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSaveReservation}
+                  sx={{ backgroundColor: '#34C759', color: 'white', '&:hover': { backgroundColor: '#2EA44F' } }}
+                >
+                  {editingReservation ? 'Actualizar Reserva' : 'Guardar Reserva'}
+                </Button>
+              </Box>
             </Box>
           </Modal>
         </div>

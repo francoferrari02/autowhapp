@@ -421,7 +421,7 @@ async function identificarNegocio(cleanNumero) {
       modulo_pedidos: Number(negocio.modulo_pedidos) === 1,
       modulo_reservas: Number(negocio.modulo_reservas) === 1,
       appointment_duration: Number(negocio.appointment_duration) || 60,
-      break_between: Number(negocio.break_between) || 15,
+      break_between: Number(negocio.break_between) || 0,
       hora_inicio_default: negocio.hora_inicio_default || '09:00',
       hora_fin_default: negocio.hora_fin_default || '18:00',
     };
@@ -458,7 +458,7 @@ async function identificarNegocioPorId(negocioId) {
       modulo_pagos: Number(negocio.modulo_pagos) === 1,             // Campo añadido
       plan: negocio.plan || 'SinPlan',                       // Campo añadido
       appointment_duration: Number(negocio.appointment_duration) || 60,
-      break_between: Number(negocio.break_between) || 15,
+      break_between: Number(negocio.break_between) || 0,
       hora_inicio_default: negocio.hora_inicio_default || '09:00',
       hora_fin_default: negocio.hora_fin_default || '18:00',
       created_at: negocio.created_at,                               // Campo añadido

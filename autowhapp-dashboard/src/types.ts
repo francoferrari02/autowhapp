@@ -52,3 +52,23 @@ export interface CalendarEvent {
   descripcion?: string;
   backgroundColor?: string;
 }
+
+export interface Reservation {
+  id: number;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  cliente: string;
+  telefono: string;
+  descripcion: string;
+  ocupado: number;
+  mesa?: string; // Para restaurantes
+  personas?: number; // Número de personas
+}
+
+export interface TimeSlot {
+  time: string;
+  reservations: Reservation[];
+  capacity: number;
+  available: number;
+}
