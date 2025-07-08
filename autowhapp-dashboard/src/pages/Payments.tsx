@@ -107,14 +107,16 @@ const Payments: React.FC = () => {
   ];
 
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', flexGrow: 1 }}>
-      <Box flexGrow={1} sx={{ padding: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '1rem' }}>
-          <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
+    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-2xl font-poppins font-bold text-white mt-2">
             Pagos y Facturación
-          </Typography>
-          <Button variant="outlined" sx={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }} onClick={() => handleOpenDialog()}>Agregar Factura</Button>
-        </Box>
+          </h2>
+          <div className="flex-1 flex justify-end max-w-[480px]">
+            <Button variant="outlined" sx={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }} onClick={() => handleOpenDialog()}>Agregar Factura</Button>
+          </div>
+        </div>
 
         <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8 }}>
           {/* Resumen */}
@@ -201,29 +203,29 @@ const Payments: React.FC = () => {
             </CardContent>
           </Card>
         </Box>
-      </Box>
 
-      {/* Diálogo de agregar/editar factura */}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{editando ? 'Editar Factura' : 'Agregar Factura'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField label="Cliente" value={formData.client} onChange={e => setFormData({ ...formData, client: e.target.value })} fullWidth />
-          <TextField label="Fecha" type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth />
-          <TextField label="Monto" type="number" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} fullWidth />
-          <FormControl fullWidth>
-            <InputLabel>Estado</InputLabel>
-            <Select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-              <MenuItem value="Pendiente">Pendiente</MenuItem>
-              <MenuItem value="Pagado">Pagado</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>Guardar</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        {/* Diálogo de agregar/editar factura */}
+        <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm">
+          <DialogTitle>{editando ? 'Editar Factura' : 'Agregar Factura'}</DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField label="Cliente" value={formData.client} onChange={e => setFormData({ ...formData, client: e.target.value })} fullWidth />
+            <TextField label="Fecha" type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField label="Monto" type="number" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} fullWidth />
+            <FormControl fullWidth>
+              <InputLabel>Estado</InputLabel>
+              <Select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                <MenuItem value="Pendiente">Pendiente</MenuItem>
+                <MenuItem value="Pagado">Pagado</MenuItem>
+              </Select>
+            </FormControl>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Cancelar</Button>
+            <Button variant="contained" onClick={handleSave}>Guardar</Button>
+          </DialogActions>
+        </Dialog>
+      </div>
+    </div>
   );
 };
 

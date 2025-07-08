@@ -275,19 +275,21 @@ const MockAnalyticsPage: React.FC = () => {
     .map(([key, val]) => ({ name: `${key.split('-')[1].padStart(2, '0')}/${key.split('-')[0]}`, ingresos: val.ingresos }));
 
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', flexGrow: 1 }}>
-      <Box flexGrow={1} sx={{ padding: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '1rem' }}>
-          <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>Analíticas</Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} sx={{ backgroundColor: '#f5f5f5', borderRadius: 6, fontWeight: 'bold' }} variant="outlined">
-              {meses.map((mes, i) => (<MenuItem key={i + 1} value={i + 1}>{mes}</MenuItem>))}
-            </Select>
-            <Select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} sx={{ backgroundColor: '#f5f5f5', borderRadius: 6, fontWeight: 'bold' }} variant="outlined">
-              {years.map((year) => (<MenuItem key={year} value={year}>{year}</MenuItem>))}
-            </Select>
-          </Box>
-        </Box>
+    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-2xl font-poppins font-bold text-white mt-2">Analíticas</h2>
+          <div className="flex-1 flex justify-end max-w-[480px]">
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} sx={{ backgroundColor: '#f5f5f5', borderRadius: 6, fontWeight: 'bold' }} variant="outlined">
+                {meses.map((mes, i) => (<MenuItem key={i + 1} value={i + 1}>{mes}</MenuItem>))}
+              </Select>
+              <Select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} sx={{ backgroundColor: '#f5f5f5', borderRadius: 6, fontWeight: 'bold' }} variant="outlined">
+                {years.map((year) => (<MenuItem key={year} value={year}>{year}</MenuItem>))}
+              </Select>
+            </Box>
+          </div>
+        </div>
 
         <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8 }}>
           <Button variant="contained" onClick={generarDatosMock} sx={{ mb: 4, backgroundColor: '#1e3a8a' }}>Generar datos aleatorios</Button>
@@ -301,28 +303,24 @@ const MockAnalyticsPage: React.FC = () => {
               label: 'Total de Ventas', value: totalVentas, extra: variacionVentas
             }, {
               label: 'Ingreso promedio/venta', value: `${ingresoPromedioPorVenta.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}`
-            }/*, {
-              label: 'Promedio semanal', value: promedioVentasSemana
-            }*/, {
+            }, {
               label: 'Total de Reservas', value: totalReservas
             }, {
               label: 'Más vendido', value: productoMasVendido
             }, {
               label: 'Menos vendido', value: productoMenosVendido
-            }/*, {
-              label: 'Franja horaria más activa', value: `${franjaTop}:00 - ${franjaTop + 1}:00`
-            }*/, {
+            }, {
               label: 'Tendencia de crecimiento', value: tendenciaCrecimiento > 0 ? '📈 Positiva' : '📉 Negativa'
             }].map((item, i) => (
               <Card key={i} sx={{ minWidth: 200, flex: 1, backgroundColor: '#f5f5f5' }}>
                 <CardContent sx={{ textAlign: 'center' }}>
                   <Typography variant="h6">{item.label}</Typography>
                   <Typography variant="h5">{item.value}</Typography>
-{typeof item.extra === 'number' && (
-  <Typography variant="body2" sx={{ color: item.extra >= 0 ? 'green' : 'red' }}>
-    {item.extra >= 0 ? '📈' : '📉'} {Math.abs(item.extra)}% respecto al mes anterior
-  </Typography>
-)}
+                  {typeof item.extra === 'number' && (
+                    <Typography variant="body2" sx={{ color: item.extra >= 0 ? 'green' : 'red' }}>
+                      {item.extra >= 0 ? '📈' : '📉'} {Math.abs(item.extra)}% respecto al mes anterior
+                    </Typography>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -364,15 +362,13 @@ const MockAnalyticsPage: React.FC = () => {
                 <XAxis dataKey="name" label={{ value: 'Mes', position: 'insideBottom', offset: -5 }} />
                 <YAxis label={{ value: 'Ingresos', angle: -90, position: 'insideLeft', dx: -10 }} />
                 <Tooltip />
-                
                 <Bar dataKey="ingresos" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
           </Box>
-
         </Box>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };
 

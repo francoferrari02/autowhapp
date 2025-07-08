@@ -296,14 +296,16 @@ const RemindersPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ backgroundColor: '#2563EB', minHeight: '100vh', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-      <Box flexGrow={1} sx={{ padding: 3, display: 'flex', flexDirection: 'column' }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-          <Typography variant="h5" sx={{ color: 'white', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-2xl font-poppins font-bold text-white mt-2">
             Configuración de Recordatorios
-          </Typography>
-          <ModuleStatus moduleName="Recordatorios" active={moduloRecordatorios} onToggle={handleToggleRecordatorios} />
-        </Box>
+          </h2>
+          <div className="flex-1 flex justify-end max-w-[480px]">
+            <ModuleStatus moduleName="Recordatorios" active={moduloRecordatorios} onToggle={handleToggleRecordatorios} />
+          </div>
+        </div>
 
         <Box sx={{ backgroundColor: 'white', padding: 3, borderRadius: 8, boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
           <Typography variant="h6" mb={2} sx={{ fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>
@@ -581,8 +583,8 @@ const RemindersPage: React.FC = () => {
             {pageMessage}
           </Alert>
         </Snackbar>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };
 
