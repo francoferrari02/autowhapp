@@ -316,6 +316,30 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// Middleware híbrido que acepta tanto tokens del dashboard como del bot
+const checkJwtHybrid = (req, res, next) => {
+  // Primero intentar con checkJwt (dashboard)
+  checkJwt(req, res, (err1) => {
+    if (!err1) {
+      // Si funciona con checkJwt, continúa
+      return next();
+    }
+    
+    // Si falla, intentar con jwtCheckBot (bot)
+    jwtCheckBot(req, res, (err2) => {
+      if (!err2) {
+        // Si funciona con jwtCheckBot, continúa
+        return next();
+      }
+      
+      // Si ambos fallan, retornar el error del dashboard (más común)
+      console.error('Auth error - Dashboard JWT:', err1);
+      console.error('Auth error - Bot JWT:', err2);
+      return res.status(401).json({ error: 'Invalid token for both dashboard and bot' });
+    });
+  });
+};
+
 cron.schedule('*/30 * * * * *', () => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -516,7 +540,7 @@ app.get('/api/negocio/:id', checkJwt, async (req, res) => {
 });
 
 // Endpoint para registrar reservas
-app.post('/api/reservas/:negocioId', jwtCheckBot, (req, res) => {
+app.post('/api/reservas/:negocioId', checkJwtHybrid, (req, res) => {
   const { negocioId } = req.params;
   const { fecha, hora_inicio, hora_fin, ocupado = 1, cliente, telefono, descripcion } = req.body;
   console.log('Datos recibidos en POST /api/reservas:', { negocioId, fecha, hora_inicio, hora_fin, ocupado, cliente, telefono, descripcion });
@@ -2049,7 +2073,7 @@ app.put('/api/negocio/:id/plan', checkJwt, async (req, res) => {
   }
 });
 
-app.post('/api/sendMail'), checkJwt, async (req, res) => {
+app.post('/api/sendMail', checkJwt, async (req, res) => {
   console.log('Solicitud PUT recibida para /api/sendMail');
 
   const { mail, asunto, texto } = req.body;
@@ -2057,16 +2081,16 @@ app.post('/api/sendMail'), checkJwt, async (req, res) => {
   const sendMail = require('./gconection/mailer');
 
   sendMail(mail, asunto, texto);
-}
+});
 
-app.post('/api/saveEvent'), checkJwt, async (req, res) => {
+app.post('/api/saveEvent', checkJwt, async (req, res) => {
   console.log('Solicitud PUT recibida para /api/sendMail');
 
   const { gmail, startDate, startHour, endDate, endHour, name, description, place, repetition, colorId } = req.body;
   const saveEvent = require('./calendar');
 
   saveEvent(gmail, startDate, startHour, endDate, endHour, name, description, place, repetition, colorId);
-}
+});
 
 // Helper function to get ISO week number
 function getWeekNumber(date) {
