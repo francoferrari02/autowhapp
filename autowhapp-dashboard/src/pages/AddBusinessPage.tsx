@@ -212,6 +212,8 @@ const AddBusinessPage: React.FC = () => {
       });
       if (res.status===201||res.status===200) {
         await refreshNegocio();
+        // Asegurar que el scroll esté en la parte superior antes de navegar
+        window.scrollTo(0, 0);
         navigate('/dashboard');
       } else throw new Error('Respuesta inesperada: '+res.status);
     } catch(err:any) {

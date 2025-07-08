@@ -6,6 +6,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { NegocioProvider, useNegocio } from './NegocioContext';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import ScrollToTop from './components/ScrollToTop';
 import ConfigPage from './pages/ConfigPage';
 import OrdersPage from './pages/OrdersPage';
 import AddBusinessPage from './pages/AddBusinessPage';
@@ -89,6 +90,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen">
+      <ScrollToTop />
       {!isLandingPage && <Header />}
       <div className="flex flex-grow">
         {!isLandingPage && <Sidebar selected={selectedTab} />}

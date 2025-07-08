@@ -14,6 +14,11 @@ const ConfigPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Asegurar que el scroll esté en la parte superior cuando se cargue la página
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const formatName = (name: string | undefined) => {
     if (!name) return '';
     return name
