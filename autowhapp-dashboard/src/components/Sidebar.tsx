@@ -35,14 +35,15 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
 
   return (
     <aside
-      className="bg-[#000000] min-h-screen transition-all duration-300 ease-in-out w-52"
+      className="bg-[#000000] fixed top-16 left-0 transition-all duration-300 ease-in-out w-52 z-40"
       style={{
+        height: 'calc(100vh - 4rem)',
         paddingLeft: '0.5rem',
         paddingRight: '0',
         boxShadow: 'inset -10px 0 15px -5px rgba(0, 0, 0, 0.8), inset -3px 0 7px -3px rgba(0, 0, 0, 0.9)'
       }}
     >
-      <nav className="flex flex-col gap-4 pl-2 pr-0 py-2"> 
+      <nav className="flex flex-col gap-4 pl-2 pr-0 py-2 overflow-y-auto h-full"> 
         {NAV_ITEMS.map(({ id, label, icon: Icon, path }) => {
           const isActive = selected === id;
           return (

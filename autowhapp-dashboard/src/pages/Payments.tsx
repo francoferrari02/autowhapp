@@ -34,25 +34,7 @@ interface Invoice {
 }
 
 const Payments: React.FC = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>([{
-    id: "FAC-001",
-    client: "Panadería La Espiga",
-    date: "2024-05-01",
-    amount: 1579300.29,
-    status: "Pagado",
-  }, {
-    id: "FAC-002",
-    client: "Verdulería El Rincón",
-    date: "2024-05-03",
-    amount: 789000.0,
-    status: "Pendiente",
-  }, {
-    id: "FAC-003",
-    client: "Almacén Don Pepe",
-    date: "2024-05-07",
-    amount: 123500.0,
-    status: "Pagado",
-  }]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editando, setEditando] = useState<Invoice | null>(null);
@@ -98,13 +80,7 @@ const Payments: React.FC = () => {
   const pagado = invoices.filter((f) => f.status === "Pagado").reduce((acc, f) => acc + f.amount, 0);
   const pendiente = total - pagado;
 
-  const mockChartData = [
-    { mes: "Ene", ingresos: 1500000 },
-    { mes: "Feb", ingresos: 1820000 },
-    { mes: "Mar", ingresos: 1340000 },
-    { mes: "Abr", ingresos: 2075000 },
-    { mes: "May", ingresos: 2398000 },
-  ];
+  const mockChartData: { mes: string; ingresos: number }[] = [];
 
   return (
     <div className="flex-grow bg-blue-600 p-6 min-h-screen">
@@ -114,7 +90,7 @@ const Payments: React.FC = () => {
             Pagos y Facturación
           </h2>
           <div className="flex-1 flex justify-end max-w-[480px]">
-            <Button variant="outlined" sx={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }} onClick={() => handleOpenDialog()}>Agregar Factura</Button>
+            <Button variant="outlined" sx={{ backgroundColor: 'white', color: 'black', fontFamily: 'Poppins, sans-serif' }} onClick={() => handleOpenDialog()}>Agregar Factura</Button>
           </div>
         </div>
 

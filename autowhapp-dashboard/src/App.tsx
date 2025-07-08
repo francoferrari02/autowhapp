@@ -87,14 +87,16 @@ const AppContent: React.FC = () => {
 
   const selectedTab = getSelectedTab(location.pathname);
   const isLandingPage = location.pathname === '/';
+  const isAddBusinessPage = location.pathname === '/add-business';
+  const shouldShowSidebar = !isLandingPage && !isAddBusinessPage;
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col bg-[#000000]" style={{ minHeight: '100vh' }}>
       <ScrollToTop />
       {!isLandingPage && <Header />}
-      <div className="flex flex-grow">
-        {!isLandingPage && <Sidebar selected={selectedTab} />}
-        <div className="flex-grow">
+      <div className="flex flex-grow bg-[#000000]">
+        {shouldShowSidebar && <Sidebar selected={selectedTab} />}
+        <div className={`flex-grow bg-[#000000] ${shouldShowSidebar ? 'ml-52' : ''}`} style={{ minHeight: '100vh' }}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/config" element={<ProtectedRoute><ConfigPage /></ProtectedRoute>} />
