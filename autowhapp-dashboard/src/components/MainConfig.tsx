@@ -7,6 +7,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import PhoneIcon from '@mui/icons-material/Phone';
 import { useNegocio } from '../NegocioContext';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Business } from '../types';
@@ -63,19 +64,30 @@ const LabeledInput: React.FC<{
   value: string;
   placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ label, icon, name, value, placeholder, onChange }) => (
+  prefix?: string;
+}> = ({ label, icon, name, value, placeholder, onChange, prefix }) => (
   <div className="flex flex-col gap-1">
     <label htmlFor={name} className="flex items-center gap-1 text-gray-700 font-semibold font-poppins">
       {icon}<span>{label}</span>
     </label>
-    <input
-      id={name}
-      name={name}
-      value={value}
-      placeholder={placeholder}
-      onChange={onChange}
-      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins"
-    />
+    <div className="flex">
+      {prefix && (
+        <span className="inline-flex items-center px-3 text-gray-500 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg">
+          {prefix}
+        </span>
+      )}
+      <input
+        id={name}
+        name={name}
+        value={value}
+        placeholder={placeholder}
+        onChange={onChange}
+        type={name === 'phone' ? 'tel' : 'text'}
+        inputMode={name === 'phone' ? 'numeric' : undefined}
+        pattern={name === 'phone' ? '[0-9]*' : undefined}
+        className={`w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue font-poppins ${prefix ? 'rounded-l-none' : ''}`}
+      />
+    </div>
   </div>
 );
 
@@ -143,6 +155,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         setBusiness({
           id: data.id,
           name: data.nombre,
+          phone: data.numero_telefono ? data.numero_telefono.replace('+54', '') : '',
           type: data.tipo_negocio,
           location: data.localidad,
           address: data.direccion,
@@ -170,7 +183,8 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
 
   // Handlers adicionales
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+    const { name, value: raw } = e.target;
+    const value = name === 'phone' ? raw.replace(/\D/g, '') : raw;
     if (business) setBusiness({ ...business, [name]: value });
   };
 
@@ -219,6 +233,7 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
         `${process.env.REACT_APP_API_URL}/api/negocio/${negocioId}`,
         {
           nombre: business.name,
+          numero_telefono: `+54${business.phone}`,
           tipo_negocio: business.type,
           localidad: business.location,
           direccion: business.address,
@@ -274,6 +289,17 @@ const MainConfig: React.FC<{ negocioId: number }> = ({ negocioId }) => {
           placeholder="La Pizzería Italiana"
           onChange={handleInputChange}
         />
+        
+        <LabeledInput
+          label="Número de Teléfono"
+          icon={<PhoneIcon className="text-primary-blue" />}
+          name="phone"
+          value={business.phone}
+          placeholder="Ej. 112345678"
+          onChange={handleInputChange}
+          prefix="+54"
+        />
+        
         <div className="flex flex-col gap-1">
           <label htmlFor="type" className="text-gray-700 font-semibold font-poppins">Tipo de Negocio</label>
           <select

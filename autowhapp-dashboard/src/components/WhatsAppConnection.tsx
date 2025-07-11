@@ -201,12 +201,12 @@ const WhatsAppConnection: React.FC = () => {
           onClick={handleDisconnect}
           disabled={loading}
           className={`relative inline-flex h-10 w-20 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-success-green focus:ring-offset-2 ${
-            isConnected ? 'bg-success-green' : 'bg-gray-300'
+            isConnected ? 'bg-success-green border-2 border-green-600 shadow-lg' : 'bg-gray-300'
           } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           <span
-            className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-              isConnected ? 'translate-x-10' : 'translate-x-1'
+            className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-lg transition-transform duration-300 border-2 ${
+              isConnected ? 'translate-x-10 border-green-200' : 'translate-x-1 border-gray-200'
             }`}
           />
           {loading && (

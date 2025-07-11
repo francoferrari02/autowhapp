@@ -4,7 +4,6 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import AddIcon from '@mui/icons-material/Add';
-import QrCodeIcon from '@mui/icons-material/QrCode';
 import { useNavigate } from 'react-router-dom';
 import { useNegocio } from '../NegocioContext';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -15,9 +14,7 @@ const Header: React.FC = () => {
   const { negocio, setNegocioId, refreshNegocio } = useNegocio();
   const { logout, user } = useAuth0();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [qrAnchorEl, setQrAnchorEl] = useState<null | HTMLElement>(null);
   const [planAnchorEl, setPlanAnchorEl] = useState<null | HTMLElement>(null);
-  const [qrs, setQrs] = useState<any[]>([]);
   const [planes, setPlanes] = useState<string[]>([
     'Plan Servicios',
     'Plan Servicios Plus',
@@ -31,21 +28,12 @@ const Header: React.FC = () => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleQrMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setQrAnchorEl(event.currentTarget);
-    fetchQrs();
-  };
-
   const handlePlanMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setPlanAnchorEl(event.currentTarget);
   };
 
   const handleMenuClose = () => {
     setAnchorEl(null);
-  };
-
-  const handleQrMenuClose = () => {
-    setQrAnchorEl(null);
   };
 
   const handlePlanMenuClose = () => {
@@ -89,25 +77,6 @@ const handlePlanSelect = async (plan: string) => {
   }
 };
 
-  const fetchQrs = async () => {
-    try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/qrs`);
-      setQrs(response.data as any[]);
-    } catch (error) {
-      console.error('Error al obtener QRs:', error);
-      setQrs([]);
-    }
-  };
-
-  useEffect(() => {
-    if (qrAnchorEl) {
-      const interval = setInterval(fetchQrs, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [qrAnchorEl]);
-
-  
-
   return (
     <AppBar
       position="sticky"
@@ -139,13 +108,6 @@ const handlePlanSelect = async (plan: string) => {
           onClick={handlePlanMenuOpen}
         >
           <SettingsIcon sx={{ color: '#FFFFFF' }} />
-        </IconButton>
-        <IconButton
-          sx={{ backgroundColor: 'rgb(69, 79, 225)', marginRight: 1, '&:hover': { backgroundColor: '#93C5FD' } }}
-          onClick={handleQrMenuOpen}
-          disabled={!negocio}
-        >
-          <QrCodeIcon sx={{ color: '#FFFFFF' }} />
         </IconButton>
         <IconButton
           sx={{ backgroundColor: 'rgb(69, 79, 225)', '&:hover': { backgroundColor: '#93C5FD' } }}
@@ -192,23 +154,6 @@ const handlePlanSelect = async (plan: string) => {
               {plan}
             </MenuItem>
           ))}
-        </Menu>
-        <Menu
-          anchorEl={qrAnchorEl}
-          open={Boolean(qrAnchorEl)}
-          onClose={handleQrMenuClose}
-          PaperProps={{ sx: { backgroundColor: 'rgb(69, 79, 225)', color: '#FFFFFF', maxWidth: '400px' } }}
-        >
-          {qrs.length === 0 ? (
-            <MenuItem disabled>Todos los negocios están autenticados o no hay QR disponibles</MenuItem>
-          ) : (
-            qrs.map(qr => (
-              <MenuItem key={qr.negocioId} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <Typography>{qr.nombre}</Typography>
-                <img src={qr.qr} alt={`QR para negocio ${qr.negocioId}`} style={{ width: '200px', height: '200px' }} />
-              </MenuItem>
-            ))
-          )}
         </Menu>
       </Toolbar>
 </AppBar>

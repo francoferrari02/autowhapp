@@ -6,6 +6,7 @@ export interface FAQ {
 export interface Business {
   id: number;
   name: string;
+  phone: string;
   type: string;
   location: string;
   address: string;

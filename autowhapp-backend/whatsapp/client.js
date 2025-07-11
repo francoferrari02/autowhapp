@@ -220,18 +220,18 @@ function initializeClientForNegocio(negocio) {
     'SELECT responder FROM contactos_negocio WHERE negocio_id = $1 AND contact_id = $2',
     [negocioId, contactId]
   );
-  let responder = true;
+  let responder = false; // Cambiar a FALSE por defecto
   if (contactRes.rows.length > 0) {
     responder = contactRes.rows[0].responder;
   } else {
-    // Agregar nuevo contacto con responder = TRUE
+    // Agregar nuevo contacto con responder = FALSE
     const contact = await client.getContactById(contactId);
     const name = contact.name || contact.pushname || contact.id.user;
     await db.query(
       'INSERT INTO contactos_negocio (negocio_id, contact_id, nombre, responder) VALUES ($1, $2, $3, $4)',
-      [negocioId, contactId, name, true]
+      [negocioId, contactId, name, false]
     );
-    console.log(`✅ Nuevo contacto agregado: ${contactId} (${name}) para negocio ${negocioId}`);
+    console.log(`✅ Nuevo contacto agregado: ${contactId} (${name}) para negocio ${negocioId} - IGNORADO por defecto`);
   }
 
   if (!responder) {
