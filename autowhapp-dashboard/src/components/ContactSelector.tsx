@@ -16,6 +16,7 @@ const ContactSelector: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'ignored' | 'attended'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchContacts = async () => {
     if (!negocioId) return;
@@ -107,9 +108,15 @@ const ContactSelector: React.FC = () => {
   };
 
   const filteredContacts = contacts.filter(contact => {
-    if (filter === 'all') return true;
-    if (filter === 'ignored') return !contact.responder;
-    if (filter === 'attended') return contact.responder;
+    // Filtrar por estado (todos, atendidos, ignorados)
+    let matchesFilter = true;
+    if (filter === 'ignored') matchesFilter = !contact.responder;
+    if (filter === 'attended') matchesFilter = contact.responder;
+    
+    // Filtrar por término de búsqueda
+    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesFilter && matchesSearch;
   });
 
   return (
@@ -123,6 +130,37 @@ const ContactSelector: React.FC = () => {
         >
           {loading ? 'Cargando...' : 'Refrescar'}
         </button>
+      </div>
+
+      {/* Buscador */}
+      <div className="mb-4">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Buscar contacto por nombre..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <svg 
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
         <div className="flex justify-between items-center mb-4">
@@ -166,10 +204,26 @@ const ContactSelector: React.FC = () => {
     </div>
 
       {error && <p className="text-red-600 mb-4">{error}</p>}
+      
+      {/* Mostrar contador de resultados */}
+      {!loading && (
+        <div className="mb-4 text-sm text-gray-600">
+          {searchTerm ? (
+            <>Mostrando {filteredContacts.length} de {contacts.length} contactos para "{searchTerm}"</>
+          ) : (
+            <>Mostrando {filteredContacts.length} contactos</>
+          )}
+        </div>
+      )}
+      
       {loading ? (
         <p className="text-gray-600">Cargando contactos...</p>
       ) : filteredContacts.length === 0 ? (
-        <p className="text-gray-600">No hay contactos disponibles. Conecta WhatsApp para cargar la lista.</p>
+        searchTerm ? (
+          <p className="text-gray-600">No se encontraron contactos que coincidan con "{searchTerm}".</p>
+        ) : (
+          <p className="text-gray-600">No hay contactos disponibles. Conecta WhatsApp para cargar la lista.</p>
+        )
       ) : (
         <ul className="space-y-3 max-h-96 overflow-y-auto">
           {filteredContacts.map(contact => (
