@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS contactos_negocio (
   negocio_id INTEGER NOT NULL,
   contact_id TEXT NOT NULL, -- WhatsApp contact ID, e.g., '5491123456789@c.us'
   nombre TEXT, -- Nombre del contacto para referencia
-  responder BOOLEAN DEFAULT TRUE, -- TRUE para responder, FALSE para ignorar
+  responder BOOLEAN DEFAULT FALSE, -- TRUE para responder, FALSE para ignorar
   CONSTRAINT fk_negocio_contactos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
   UNIQUE (negocio_id, contact_id) -- Evita duplicados por negocio y contacto
 );

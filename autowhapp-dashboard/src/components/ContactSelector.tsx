@@ -39,7 +39,6 @@ const ContactSelector: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching contacts:', err);
-      setError('No se pudieron cargar los contactos. Asegúrate de que WhatsApp esté conectado.');
       setContacts([]);
     } finally {
       setLoading(false);
@@ -114,8 +113,8 @@ const ContactSelector: React.FC = () => {
   });
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 font-poppins">
-      <div className="flex justify-between items-center mb-4">
+    <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200 font-poppins max-w-[1000px] mx-auto mb-6">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2"> 
         <h2 className="text-xl font-bold text-black">Seleccionar Contactos para Responder</h2>
         <button
           onClick={fetchContacts}
@@ -126,43 +125,45 @@ const ContactSelector: React.FC = () => {
         </button>
       </div>
 
+        <div className="flex justify-between items-center mb-4">
       {/* Botones de filtro */}
-      <div className="mb-4 space-x-2">
+      <div className="space-x-2">
         <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'} hover:bg-blue-500 transition-all`}
-        >
-          Todos
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'} hover:bg-blue-500 transition-all font-poppins`}
+            >
+            Todos
         </button>
         <button
-          onClick={() => setFilter('attended')}
-          className={`px-4 py-2 rounded ${filter === 'attended' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'} hover:bg-blue-500 transition-all`}
-        >
-          Atendidos
+            onClick={() => setFilter('attended')}
+            className={`px-4 py-2 rounded ${filter === 'attended' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'} hover:bg-blue-500 transition-all font-poppins`}
+            >
+            Atendidos
         </button>
         <button
-          onClick={() => setFilter('ignored')}
-          className={`px-4 py-2 rounded ${filter === 'ignored' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'} hover:bg-blue-500 transition-all`}
-        >
-          Ignorados
+            onClick={() => setFilter('ignored')}
+            className={`px-4 py-2 rounded ${filter === 'ignored' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'} hover:bg-blue-500 transition-all font-poppins`}
+            >
+            Ignorados
         </button>
-      </div>
+    </div>
 
       {/* Botones de acción masiva */}
-      <div className="mb-4 space-x-2">
+      <div className="space-x-2">
         <button
-          onClick={ignoreAll}
-          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-all"
-        >
-          Ignorar Todos
+            onClick={ignoreAll}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-all font-poppins"
+            >
+            Ignorar Todos
         </button>
-        <button
-          onClick={attendAll}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-all"
-        >
-          Atender Todos
+            <button
+            onClick={attendAll}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-all font-poppins"
+            >
+            Atender Todos
         </button>
-      </div>
+    </div>
+    </div>
 
       {error && <p className="text-red-600 mb-4">{error}</p>}
       {loading ? (
