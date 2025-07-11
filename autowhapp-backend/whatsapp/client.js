@@ -362,10 +362,10 @@ function initializeClientForNegocio(negocio) {
 
       if (reservaData) {
         console.log('🔍 Reserva detectada:', reservaData);
-        await handleReserva(reservaData, client); // Pasar el token aquí
+        await handleReserva(reservaData, client, msg.from, negocio.nombre);
       } else if (pedidoData) {
         console.log('🔍 Pedido detectado:', pedidoData);
-        await handlePedido(pedidoData, client); // Pasar el token aquí
+        await handlePedido(pedidoData, client, msg.from, negocio.nombre); 
       } else {
         await client.sendMessage(msg.from, respuesta);
         console.log('📨 Respuesta enviada (no es reserva ni pedido):', respuesta);
@@ -529,11 +529,12 @@ function detectarPedido(respuesta) {
 /**
  * Inserta una reserva en tu backend usando token M2M
  */
-async function handleReserva(reservaData, client) {
+async function handleReserva(reservaData, client, originalMessageFrom, NegocioNombre) {
   const token = await getApiToken();
   const backendUrl = `${process.env.BACKEND_URL}/api/reservas/${reservaData.negocioId}`;
 
   try {
+
     const res = await axios.post(
       backendUrl,
       {
@@ -555,11 +556,11 @@ async function handleReserva(reservaData, client) {
                      + `- Horario: ${reservaData.hora_inicio} a ${reservaData.hora_fin}\n`;
 
       // Si viene precio > 0, generamos link
-      if (reservaData.precio > 0) {
+      if (1) {
         try {
           const pago = await axios.post(
             `${process.env.BACKEND_URL}/api/mercadopago/create`,
-            { title: `Reserva para ${reservaData.numeroCliente}`, price: Number(reservaData.precio), quantity: 1 }
+            { title: `Reserva de ${NegocioNombre}`, price: 2000, quantity: 1 }
           );
           confirmMsg += pago.data.link
             ? `\n💳 Podés pagarla acá: ${pago.data.link}`
@@ -570,15 +571,15 @@ async function handleReserva(reservaData, client) {
         }
       }
 
-      await client.sendMessage(reservaData.numeroCliente, confirmMsg);
+      await client.sendMessage(originalMessageFrom, confirmMsg);
       console.log('📨 Mensaje de confirmación enviado');
     } else {
       console.error('❌ Backend rechazó la reserva:', res.data);
-      await client.sendMessage(reservaData.numeroCliente, 'Error al confirmar la reserva, intentá de nuevo.');
+      await client.sendMessage(originalMessageFrom, 'Error al confirmar la reserva, intentá de nuevo.');
     }
   } catch (err) {
     console.error('❌ Error al insertar reserva:', err.message);
-    await client.sendMessage(reservaData.numeroCliente, 'Error al confirmar la reserva, intentá de nuevo.');
+    await client.sendMessage(originalMessageFrom, 'Error al confirmar la reserva, intentá de nuevo.');
   }
 }
 
@@ -586,11 +587,24 @@ async function handleReserva(reservaData, client) {
 /**
  * Inserta un pedido en tu backend usando token M2M
  */
-async function handlePedido(pedidoData, client) {
+async function handlePedido(pedidoData, client, originalMessageFrom, NegocioNombre) {
   const token = await getApiToken();
   const backendUrl = `${process.env.BACKEND_URL}/api/pedidos/${pedidoData.negocioId}`;
 
   try {
+    for (let item of pedidoData.items) {
+      const result = await db.query(
+        'SELECT precio FROM productos WHERE negocio_id = $1 AND nombre = $2',
+        [pedidoData.negocioId, item.nombre]
+      );
+
+      if (result.rows.length > 0) {
+        item.precio = result.rows[0].precio;
+      } else {
+        item.precio = 0;
+        console.warn('⚠️ Producto no encontrado: ${item.nombre}');
+      }
+    }
     const res = await axios.post(
       backendUrl,
       {
@@ -615,7 +629,7 @@ async function handlePedido(pedidoData, client) {
       try {
         const pago = await axios.post(
           `${process.env.BACKEND_URL}/api/mercadopago/create`,
-          { title: `Pedido para ${pedidoData.numeroCliente}`, price: total, quantity: 1 }
+          { title: `Pedido de ${NegocioNombre}`, price: total, quantity: 1 }
         );
         confirmMsg += pago.data.link
           ? `\n💳 Podés pagarlo acá: ${pago.data.link}`
@@ -625,15 +639,16 @@ async function handlePedido(pedidoData, client) {
         confirmMsg += `\n⚠️ Error al generar el link de pago.`;
       }
 
-      await client.sendMessage(pedidoData.numeroCliente, confirmMsg);
+      // Usar el número original del mensaje en lugar del procesado
+      await client.sendMessage(originalMessageFrom, confirmMsg);
       console.log('📨 Mensaje de confirmación enviado');
     } else {
       console.error('❌ Backend rechazó el pedido:', res.data);
-      await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');
+      await client.sendMessage(originalMessageFrom, 'Error al registrar el pedido, intentá de nuevo.');
     }
   } catch (err) {
     console.error('❌ Error al insertar pedido:', err.message);
-    await client.sendMessage(pedidoData.numeroCliente, 'Error al registrar el pedido, intentá de nuevo.');
+    await client.sendMessage(originalMessageFrom, 'Error al registrar el pedido, intentá de nuevo.');
   }
 }
 

@@ -131,4 +131,5 @@ CREATE TABLE IF NOT EXISTS contactos_negocio (
   responder BOOLEAN DEFAULT FALSE, -- TRUE para responder, FALSE para ignorar
   CONSTRAINT fk_negocio_contactos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
   UNIQUE (negocio_id, contact_id) -- Evita duplicados por negocio y contacto
+  
 );
