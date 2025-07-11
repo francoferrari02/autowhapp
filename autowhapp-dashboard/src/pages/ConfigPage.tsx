@@ -6,6 +6,7 @@ import WhatsAppConnection from '../components/WhatsAppConnection';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import { useNavigate } from 'react-router-dom';
+import ContactSelector from '../components/ContactSelector';
 
 const ConfigPage: React.FC = () => {
   const { negocioId, negocio, loading: contextLoading } = useNegocio();
@@ -100,6 +101,7 @@ const ConfigPage: React.FC = () => {
           </h2>
         </div>
         <WhatsAppConnection />
+        <ContactSelector />
         <div className="flex gap-3 flex-wrap">
           <div className="flex-1 md:flex-[0_0_100%]">
             <MainConfig negocioId={negocioId} />

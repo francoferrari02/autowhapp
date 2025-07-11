@@ -122,3 +122,13 @@ CREATE TABLE IF NOT EXISTS pedidos (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_negocio_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS contactos_negocio (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER NOT NULL,
+  contact_id TEXT NOT NULL, -- WhatsApp contact ID, e.g., '5491123456789@c.us'
+  nombre TEXT, -- Nombre del contacto para referencia
+  responder BOOLEAN DEFAULT TRUE, -- TRUE para responder, FALSE para ignorar
+  CONSTRAINT fk_negocio_contactos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
+  UNIQUE (negocio_id, contact_id) -- Evita duplicados por negocio y contacto
+);

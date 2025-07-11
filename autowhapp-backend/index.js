@@ -2104,9 +2104,7 @@ function getWeekNumber(date) {
 // Servir archivos estáticos
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
-});
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -2124,3 +2122,103 @@ console.log('Current clients:', clients);
 //   const { initializeClientForNegocio: initClient } = require('./whatsapp/client');
 //   initClient(negocio);
 // }
+
+// Endpoint para obtener contactos de WhatsApp
+app.get('/api/contactos/:negocioId', checkJwt, async (req, res) => {
+  console.log('Autenticación exitosa, payload:', req.auth);
+  console.log('Negocio ID:', req.params.negocioId);
+  const { negocioId } = req.params;
+  const auth0Id = req.auth.sub;
+
+  try {
+    const client = await db.connect();
+    const userResult = await client.query(
+      'SELECT n.id FROM negocios n JOIN users u ON n.user_id = u.id WHERE n.id = $1 AND u.auth0_id = $2',
+      [negocioId, auth0Id]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(403).json({ error: 'No autorizado para este negocio' });
+    }
+    client.release();
+
+    const clientObj = clients[negocioId];
+    if (!clientObj || !clientObj.client) {
+      return res.status(400).json({ error: 'WhatsApp client no inicializado' });
+    }
+
+    const contacts = await clientObj.client.getContacts();
+    const individualContacts = contacts.filter(contact => contact.id.server === 'c.us');
+
+    const dbContacts = await db.query(
+      'SELECT contact_id, responder FROM contactos_negocio WHERE negocio_id = $1',
+      [negocioId]
+    );
+    const contactMap = new Map(dbContacts.rows.map(c => [c.contact_id, c.responder]));
+
+    const contactList = individualContacts.map(contact => ({
+      id: contact.id._serialized,
+      name: contact.name || contact.pushname || contact.id.user,
+      responder: contactMap.has(contact.id._serialized) ? contactMap.get(contact.id._serialized) : true
+    }));
+
+    res.json(contactList);
+  } catch (err) {
+    console.error('Error en /api/contactos:', err);
+    res.status(500).json({
+      error: 'Error interno del servidor',
+      details: err.message,
+      stack: err.stack
+    });
+  }
+});
+
+app.put('/api/contactos/:negocioId/:contactId', checkJwt, async (req, res) => {
+  const { negocioId, contactId } = req.params;
+  const { responder } = req.body;
+  const auth0Id = req.auth.sub;
+
+  try {
+    // Verificar permisos del usuario
+    const client = await db.connect();
+    const userResult = await client.query(
+      'SELECT n.id FROM negocios n JOIN users u ON n.user_id = u.id WHERE n.id = $1 AND u.auth0_id = $2',
+      [negocioId, auth0Id]
+    );
+    if (userResult.rows.length === 0) {
+      client.release();
+      return res.status(403).json({ error: 'No autorizado para este negocio' });
+    }
+    client.release();
+
+    // Verificar si el contacto ya existe
+    const existing = await db.query(
+      'SELECT 1 FROM contactos_negocio WHERE negocio_id = $1 AND contact_id = $2',
+      [negocioId, contactId]
+    );
+    if (existing.rows.length > 0) {
+      await db.query(
+        'UPDATE contactos_negocio SET responder = $1 WHERE negocio_id = $2 AND contact_id = $3',
+        [responder, negocioId, contactId]
+      );
+    } else {
+      const clientObj = clients[negocioId];
+      if (!clientObj || !clientObj.client) {
+        return res.status(400).json({ error: 'WhatsApp client no inicializado' });
+      }
+      const contact = await clientObj.client.getContactById(contactId);
+      const name = contact.name || contact.pushname || contact.id.user;
+      await db.query(
+        'INSERT INTO contactos_negocio (negocio_id, contact_id, nombre, responder) VALUES ($1, $2, $3, $4)',
+        [negocioId, contactId, name, responder]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating contact responder status:', err);
+    res.status(500).json({ error: 'Error al actualizar contacto' });
+  }
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});

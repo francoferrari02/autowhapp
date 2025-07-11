@@ -205,24 +205,48 @@ function initializeClientForNegocio(negocio) {
       return;
     }
 
+    //ignoramos mensajes de grupos
+    if (chat.isGroup) {
+      console.log(`⚠️ Mensaje ignorado: Proviene de un grupo (${chat.name})`);
+      return;
+    }
+
     console.log(`📩 Mensaje recibido para negocio ${negocioId}: "${msg.body}" del chat "${chat.name}"`);
 
-    if (chat.isGroup && chat.name !== 'Prueba Autowhapp') {
-      console.log(`⚠️ Mensaje ignorado: No proviene del grupo "Prueba Autowhapp" (chat: ${chat.name})`);
-      return;
-    }
+    const contactId = msg.from; // e.g., '5491123456789@c.us'
 
-    if (!chat.isGroup) {
-      console.log(`⚠️ Mensaje ignorado: No proviene de un grupo (chat: ${chat.name})`);
-      return;
-    }
+  // Verificar si el contacto está en la base de datos
+  const contactRes = await db.query(
+    'SELECT responder FROM contactos_negocio WHERE negocio_id = $1 AND contact_id = $2',
+    [negocioId, contactId]
+  );
+  let responder = true;
+  if (contactRes.rows.length > 0) {
+    responder = contactRes.rows[0].responder;
+  } else {
+    // Agregar nuevo contacto con responder = TRUE
+    const contact = await client.getContactById(contactId);
+    const name = contact.name || contact.pushname || contact.id.user;
+    await db.query(
+      'INSERT INTO contactos_negocio (negocio_id, contact_id, nombre, responder) VALUES ($1, $2, $3, $4)',
+      [negocioId, contactId, name, true]
+    );
+    console.log(`✅ Nuevo contacto agregado: ${contactId} (${name}) para negocio ${negocioId}`);
+  }
 
-    const negocioDb = await identificarNegocioPorId(negocioId);
-    if (!negocioDb || typeof negocioDb.estado_bot === 'undefined') {
-      console.log('⚠️ Negocio no identificado o estado_bot indefinido');
-      await client.sendMessage(msg.from, 'Ocurrió un error, intentá de nuevo.');
-      return;
-    }
+  if (!responder) {
+    console.log(`⚠️ Mensaje ignorado: Contacto ${contactId} configurado para no responder`);
+    return;
+  }
+
+  const negocioDb = await identificarNegocioPorId(negocioId);
+  if (!negocioDb || typeof negocioDb.estado_bot === 'undefined') {
+    console.log('⚠️ Negocio no identificado o estado_bot indefinido');
+    await client.sendMessage(msg.from, 'Ocurrió un error, intentá de nuevo.');
+    return;
+  }
+
+   
 
     if (!negocioDb.estado_bot) {
       console.log('🤖 Bot desactivado');
