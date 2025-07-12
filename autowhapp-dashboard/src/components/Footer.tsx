@@ -9,7 +9,7 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-autowhapp-black text-white py-16">
+    <footer className="bg-autowhapp-black text-white py-16 rounded-xl mx-4 mb-4">
       <div className="container mx-auto px-4">
         <div className="grid md:grid-cols-4 gap-8">
           {/* Logo and Description */}
@@ -99,11 +99,11 @@ const Footer = () => {
             <div className="space-y-3">
               <div className="flex items-center space-x-2 text-gray-400">
                 <Mail className="h-4 w-4" />
-                <span>hola@autowhapp.com</span>
+                <span>autowhapp@gmail.com</span>
               </div>
               <div className="flex items-center space-x-2 text-gray-400">
                 <Phone className="h-4 w-4" />
-                <span>+52 (55) 1234-5678</span>
+                <span>+54 (911) 1234-5678</span>
               </div>
             </div>
           </div>

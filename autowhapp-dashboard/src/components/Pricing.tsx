@@ -6,42 +6,42 @@ const Pricing = () => {
     {
       name: 'Plan Servicios',
       description: 'Ideal para negocios de servicios',
-      price: '$29',
+      price: '$20.000',
       features: ['Reservas automatizadas', 'Recordatorios', 'Soporte básico', 'Hasta 100 clientes'],
       popular: false,
     },
     {
       name: 'Plan Servicios Plus',
       description: 'Servicios con análisis avanzados',
-      price: '$49',
+      price: '$30.000',
       features: ['Todo en Plan Servicios', 'Analíticas avanzadas', 'Soporte prioritario', 'Hasta 500 clientes'],
       popular: false,
     },
     {
       name: 'Plan Tienda',
       description: 'Perfecto para comercios minoristas',
-      price: '$39',
+      price: '$25.000',
       features: ['Gestión de pedidos', 'Inventario básico', 'Analíticas', 'Hasta 200 productos'],
       popular: false,
     },
     {
       name: 'Plan Tienda Plus',
       description: 'Comercios con pagos integrados',
-      price: '$69',
+      price: '$35.000',
       features: ['Todo en Plan Tienda', 'Pagos integrados', 'Inventario avanzado', 'Productos ilimitados'],
       popular: false,
     },
     {
       name: 'Plan Premium',
       description: 'Solución completa para tu negocio',
-      price: '$99',
+      price: '$45.000',
       features: ['Todos los módulos', 'Reservas + Pedidos + Pagos', 'Analíticas premium', 'Soporte 24/7', 'Clientes ilimitados'],
       popular: true,
     },
     {
       name: 'Plan Personalizado',
       description: 'Soluciones a medida',
-      price: 'Consultar',
+      price: 'Desde $30.000',
       features: ['Funcionalidades específicas', 'Integraciones personalizadas', 'Soporte dedicado', 'Escalabilidad empresarial'],
       popular: false,
     },
@@ -95,7 +95,7 @@ const Pricing = () => {
                   <span className="text-4xl font-bold text-autowhapp-black">
                     {plan.price}
                   </span>
-                  {plan.price !== 'Consultar' && (
+                  {!plan.price.includes('Desde') && plan.price !== 'Consultar' && (
                     <span className="text-gray-600">/mes</span>
                   )}
                 </div>

@@ -47,25 +47,50 @@ const Features = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <div 
-              key={index}
-              className="bg-white border border-gray-200 rounded-xl p-8 hover:shadow-xl transition-shadow group hover:border-autowhapp-blue"
-            >
-              <div className={`inline-flex items-center justify-center w-14 h-14 ${feature.color} rounded-xl mb-6 group-hover:scale-110 transition-transform`}>
-                <feature.icon className="h-7 w-7 text-white" />
+        <div className="space-y-8">
+          {/* Primera fila: Reservas, Pedidos, Recordatorios */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.slice(0, 3).map((feature, index) => (
+              <div 
+                key={index}
+                className="bg-white border border-gray-200 rounded-xl p-8 hover:shadow-xl transition-shadow group hover:border-autowhapp-blue"
+              >
+                <div className={`inline-flex items-center justify-center w-14 h-14 ${feature.color} rounded-xl mb-6 group-hover:scale-110 transition-transform`}>
+                  <feature.icon className="h-7 w-7 text-white" />
+                </div>
+                
+                <h3 className="text-xl font-semibold text-autowhapp-black mb-3">
+                  {feature.title}
+                </h3>
+                
+                <p className="text-gray-600 leading-relaxed">
+                  {feature.description}
+                </p>
               </div>
-              
-              <h3 className="text-xl font-semibold text-autowhapp-black mb-3">
-                {feature.title}
-              </h3>
-              
-              <p className="text-gray-600 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Segunda fila: Analíticas y Pagos centradas */}
+          <div className="grid grid-cols-2 gap-8 justify-center max-w-4xl mx-auto">
+            {features.slice(3).map((feature, index) => (
+              <div 
+                key={index + 3}
+                className="bg-white border border-gray-200 rounded-xl p-8 hover:shadow-xl transition-shadow group hover:border-autowhapp-blue"
+              >
+                <div className={`inline-flex items-center justify-center w-14 h-14 ${feature.color} rounded-xl mb-6 group-hover:scale-110 transition-transform`}>
+                  <feature.icon className="h-7 w-7 text-white" />
+                </div>
+                
+                <h3 className="text-xl font-semibold text-autowhapp-black mb-3">
+                  {feature.title}
+                </h3>
+                
+                <p className="text-gray-600 leading-relaxed">
+                  {feature.description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

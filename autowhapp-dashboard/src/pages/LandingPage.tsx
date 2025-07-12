@@ -23,7 +23,6 @@ const LandingPage: React.FC = () => {
       <ContactForm />
       <Footer />
       <Toaster />
-      <div className="mt-4 bg-autowhapp-black text-autowhapp-white p-6">Prueba de estilo</div>
     </div>
   );
 };

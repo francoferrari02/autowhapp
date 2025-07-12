@@ -79,7 +79,7 @@ const ContactForm = () => {
                     onChange={handleChange}
                     required
                     placeholder="Ej: María González"
-                    className="w-full"
+                    className="w-full bg-white text-gray-900 border-gray-300 focus:border-autowhapp-blue focus:ring-autowhapp-blue"
                   />
                 </div>
 
@@ -98,7 +98,7 @@ const ContactForm = () => {
                     onChange={handleChange}
                     required
                     placeholder="maria@miempresa.com"
-                    className="w-full"
+                    className="w-full bg-white text-gray-900 border-gray-300 focus:border-autowhapp-blue focus:ring-autowhapp-blue"
                   />
                 </div>
 
@@ -116,7 +116,7 @@ const ContactForm = () => {
                     value={formData.company}
                     onChange={handleChange}
                     placeholder="Nombre de tu empresa"
-                    className="w-full"
+                    className="w-full bg-white text-gray-900 border-gray-300 focus:border-autowhapp-blue focus:ring-autowhapp-blue"
                   />
                 </div>
 
@@ -134,7 +134,7 @@ const ContactForm = () => {
                     onChange={handleChange}
                     rows={4}
                     placeholder="Tipo de negocio, número de clientes, necesidades específicas..."
-                    className="w-full resize-none"
+                    className="w-full resize-none bg-white text-gray-900 border-gray-300 focus:border-autowhapp-blue focus:ring-autowhapp-blue"
                   />
                 </div>
 
@@ -167,7 +167,7 @@ const ContactForm = () => {
                   </div>
                   <div>
                     <p className="text-white font-semibold">Email</p>
-                    <p className="text-blue-100">hola@autowhapp.com</p>
+                    <p className="text-blue-100">autowhapp@gmail.com</p>
                   </div>
                 </div>
 
@@ -177,7 +177,7 @@ const ContactForm = () => {
                   </div>
                   <div>
                     <p className="text-white font-semibold">Teléfono</p>
-                    <p className="text-blue-100">+52 (55) 1234-5678</p>
+                    <p className="text-blue-100">+54 (911) 1234-5678</p>
                   </div>
                 </div>
 
@@ -187,7 +187,7 @@ const ContactForm = () => {
                   </div>
                   <div>
                     <p className="text-white font-semibold">Oficina</p>
-                    <p className="text-blue-100">Ciudad de México, México</p>
+                    <p className="text-blue-100">Buenos Aires, Argentina</p>
                   </div>
                 </div>
               </div>
