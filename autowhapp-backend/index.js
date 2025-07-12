@@ -820,29 +820,50 @@ app.put('/api/pedido/:id/estado', checkJwt, (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     const pedido = await new Promise((resolve) => db.query('SELECT * FROM pedidos WHERE id = $1', [req.params.id], (e, r) => resolve(r)));
-    const mensaje = await new Promise((resolve) => db.query('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = $1 AND tipo = $2', [pedido.rows[0].negocio_id, estado.toLowerCase()], (e, r) => resolve(r?.rows[0]?.mensaje)));
-    console.log(`Mensaje recuperado para estado ${estado}: ${mensaje}`);
+    const mensajeResult = await new Promise((resolve) => db.query('SELECT mensaje FROM mensajes_pedidos WHERE negocio_id = $1 AND tipo = $2', [pedido.rows[0].negocio_id, estado.toLowerCase()], (e, r) => resolve(r)));
+    const mensaje = mensajeResult?.rows[0]?.mensaje;
+    console.log(`Mensaje recuperado para estado ${estado}:`, mensaje);
+    
     if (mensaje && clients[pedido.rows[0].negocio_id]?.client) {
-      console.log(`Buscando grupo "Prueba Autowhapp" para negocio ${pedido.rows[0].negocio_id}`);
-      let grupo;
-      const negocio = await new Promise((resolve) => db.query('SELECT grupo_id FROM negocios WHERE id = $1', [pedido.rows[0].negocio_id], (err, row) => resolve(row)));
-      if (negocio && negocio.rows[0] && negocio.rows[0].grupo_id) {
-        try {
-          grupo = await clients[pedido.rows[0].negocio_id].client.getChatById(negocio.rows[0].grupo_id);
-          console.log(`✅ Chat del grupo obtenido: ${grupo.name}`);
-        } catch (err) {
-          console.error('❌ Error al obtener chat por ID:', err.message);
+      const clienteNumero = pedido.rows[0].numero_cliente;
+      console.log(`📱 Enviando mensaje de estado "${estado}" al cliente ${clienteNumero}`);
+      
+      try {
+        // Asegurarse de que el número tenga el formato correcto para WhatsApp
+        let numeroFormateado = clienteNumero;
+        if (!numeroFormateado.includes('@')) {
+          // Limpiar el número: mantener solo dígitos y el +
+          numeroFormateado = numeroFormateado.replace(/[^\d+]/g, '');
+          
+          // Si no empieza con +, agregarlo (asumiendo Argentina +54)
+          if (!numeroFormateado.startsWith('+')) {
+            // Si empieza con 54, agregar el +
+            if (numeroFormateado.startsWith('54')) {
+              numeroFormateado = '+' + numeroFormateado;
+            } else {
+              // Si no, asumir que es un número local argentino
+              numeroFormateado = '+54' + numeroFormateado;
+            }
+          }
+          
+          // Asegurarse de que termine con @c.us para contactos individuales
+          numeroFormateado = numeroFormateado + '@c.us';
         }
-      }
-      if (!grupo) {
-        const chats = await clients[pedido.rows[0].negocio_id].client.getChats();
-        grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
-      }
-      if (grupo) {
-        console.log(`Enviando mensaje al grupo ${grupo.id._serialized}: ${mensaje}`);
-        await clients[pedido.rows[0].negocio_id].client.sendMessage(grupo.id._serialized, mensaje);
-      } else {
-        console.error(`❌ No se encontró el grupo "Prueba Autowhapp" para negocio ${pedido.rows[0].negocio_id}`);
+        
+        console.log(`📱 Número original: ${clienteNumero} -> Formateado: ${numeroFormateado}`);
+        await clients[pedido.rows[0].negocio_id].client.sendMessage(numeroFormateado, mensaje);
+        console.log(`✅ Mensaje enviado exitosamente al cliente ${clienteNumero}`);
+      } catch (err) {
+        console.error(`❌ Error al enviar mensaje al cliente ${clienteNumero}:`, err.message);
+        // Intentar con formato alternativo: solo números + @c.us
+        try {
+          const numeroAlt = clienteNumero.replace(/[^\d]/g, '') + '@c.us';
+          console.log(`🔄 Intentando formato alternativo: ${numeroAlt}`);
+          await clients[pedido.rows[0].negocio_id].client.sendMessage(numeroAlt, mensaje);
+          console.log(`✅ Mensaje enviado exitosamente al cliente ${clienteNumero} (formato alternativo)`);
+        } catch (err2) {
+          console.error(`❌ Error al enviar mensaje con formato alternativo:`, err2.message);
+        }
       }
     }
     console.log(`Estado del pedido ${req.params.id} actualizado a: ${estado}`);
@@ -1322,23 +1343,48 @@ app.post('/api/mensajes-pedidos', checkJwt, (req, res) => {
       console.error('Error al iniciar transacción:', err.message);
       return res.status(500).json({ error: err.message });
     }
+    
+    let completedQueries = 0;
+    const totalQueries = tipos.length;
+    let hasError = false;
+    
     tipos.forEach(tipo => {
-      db.query('INSERT OR REPLACE INTO mensajes_pedidos (negocio_id, tipo, mensaje) VALUES ($1, $2, $3)',
-        [negocio_id, tipo, mensajes[tipo]], (err) => {
+      db.query(
+        `INSERT INTO mensajes_pedidos (negocio_id, tipo, mensaje) 
+         VALUES ($1, $2, $3) 
+         ON CONFLICT (negocio_id, tipo) 
+         DO UPDATE SET mensaje = EXCLUDED.mensaje`,
+        [negocio_id, tipo, mensajes[tipo]], 
+        (err) => {
           if (err) {
             console.error(`Error al insertar mensaje de pedido para ${tipo}:`, err.message);
+            hasError = true;
           } else {
             console.log(`Mensaje para ${tipo} actualizado: ${mensajes[tipo]}`);
           }
-        });
-    });
-    db.query('COMMIT', (err) => {
-      if (err) {
-        console.error('Error al confirmar transacción:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-      console.log('Mensajes de pedidos actualizados con éxito');
-      res.json({ success: true });
+          
+          completedQueries++;
+          
+          // Cuando todas las consultas han terminado, hacer commit
+          if (completedQueries === totalQueries) {
+            if (hasError) {
+              db.query('ROLLBACK', (rollbackErr) => {
+                if (rollbackErr) console.error('Error al hacer rollback:', rollbackErr.message);
+                return res.status(500).json({ error: 'Error al actualizar mensajes' });
+              });
+            } else {
+              db.query('COMMIT', (commitErr) => {
+                if (commitErr) {
+                  console.error('Error al confirmar transacción:', commitErr.message);
+                  return res.status(500).json({ error: commitErr.message });
+                }
+                console.log('Mensajes de pedidos actualizados con éxito');
+                res.json({ success: true });
+              });
+            }
+          }
+        }
+      );
     });
   });
 });
