@@ -186,7 +186,7 @@ const Orders: React.FC = () => {
           audience: 'https://dev-15eg10mp60jkcv6l.us.auth0.com/api/v2/'
         }
       });
-      await axios.put(`h${process.env.REACT_APP_API_URL}/api/pedido/${orderId}/estado`, {
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/pedido/${orderId}/estado`, {
         estado: newStatus.toLowerCase(),
       }, {
         headers: { Authorization: `Bearer ${token}` }

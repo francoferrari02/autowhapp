@@ -70,6 +70,32 @@ CREATE TABLE IF NOT EXISTS reservas (
 -- Crear índice para reservas
 CREATE INDEX IF NOT EXISTS idx_reservas_negocio_fecha ON reservas (negocio_id, fecha);
 
+-- Crear tabla contactos_negocio
+CREATE TABLE IF NOT EXISTS contactos_negocio (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER NOT NULL,
+  contact_id TEXT NOT NULL, -- WhatsApp contact ID, e.g., '5491123456789@c.us'
+  nombre TEXT, -- Nombre del contacto para referencia
+  responder BOOLEAN DEFAULT FALSE, -- TRUE para responder, FALSE para ignorar
+  CONSTRAINT fk_negocio_contactos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
+  UNIQUE (negocio_id, contact_id) -- Evita duplicados por negocio y contacto
+);
+
+-- Crear tabla carpetas_contactos
+CREATE TABLE IF NOT EXISTS carpetas_contactos (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER NOT NULL,
+  nombre TEXT NOT NULL,
+  contactos TEXT[] DEFAULT '{}', -- Array de contact_ids, inicializado como array vacío
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_negocio_carpetas FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+);
+
+-- Crear índice único para evitar duplicados de nombres de carpeta por negocio
+CREATE UNIQUE INDEX IF NOT EXISTS idx_carpetas_contactos_negocio_nombre 
+ON carpetas_contactos (negocio_id, nombre);
+
 -- Crear tabla recordatorios
 CREATE TABLE IF NOT EXISTS recordatorios (
   id SERIAL PRIMARY KEY,
@@ -80,7 +106,10 @@ CREATE TABLE IF NOT EXISTS recordatorios (
   day TEXT,
   activo INTEGER DEFAULT 1,
   last_sent TIMESTAMP,
-  CONSTRAINT fk_negocio_recordatorios FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+  carpeta_id INTEGER, -- Referencias a carpetas_contactos
+  contactos TEXT[], -- Array de contact_ids para contactos individuales
+  CONSTRAINT fk_negocio_recordatorios FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
+  CONSTRAINT fk_carpeta_recordatorios FOREIGN KEY (carpeta_id) REFERENCES carpetas_contactos(id) ON DELETE SET NULL
 );
 
 -- Crear tabla faqs
@@ -109,7 +138,8 @@ CREATE TABLE IF NOT EXISTS mensajes_pedidos (
   negocio_id INTEGER,
   tipo TEXT NOT NULL,
   mensaje TEXT NOT NULL,
-  CONSTRAINT fk_negocio_mensajes_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
+  CONSTRAINT fk_negocio_mensajes_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
+  UNIQUE (negocio_id, tipo) -- Evita duplicados por negocio y tipo de mensaje
 );
 
 -- Crear tabla pedidos
@@ -123,13 +153,3 @@ CREATE TABLE IF NOT EXISTS pedidos (
   CONSTRAINT fk_negocio_pedidos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS contactos_negocio (
-  id SERIAL PRIMARY KEY,
-  negocio_id INTEGER NOT NULL,
-  contact_id TEXT NOT NULL, -- WhatsApp contact ID, e.g., '5491123456789@c.us'
-  nombre TEXT, -- Nombre del contacto para referencia
-  responder BOOLEAN DEFAULT FALSE, -- TRUE para responder, FALSE para ignorar
-  CONSTRAINT fk_negocio_contactos FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE,
-  UNIQUE (negocio_id, contact_id) -- Evita duplicados por negocio y contacto
-  
-);

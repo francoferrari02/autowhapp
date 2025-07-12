@@ -430,65 +430,74 @@ cron.schedule('*/30 * * * * *', () => {
           continue;
         }
 
-        console.log('Obteniendo chat del grupo...');
-        let grupo;
-        const negocio = await new Promise((resolve) => db.query('SELECT grupo_id FROM negocios WHERE id = $1', [negocio_id], (err, row) => resolve(row)));
-        if (negocio && negocio.rows[0] && negocio.rows[0].grupo_id) {
-          try {
-            grupo = await client.getChatById(negocio.rows[0].grupo_id);
-            console.log(`✅ Chat del grupo obtenido directamente: ${grupo.name}`);
-          } catch (err) {
-            console.error('❌ Error al obtener chat por ID:', err.message);
-          }
-        }
+        // Obtener contactos destinatarios
+        let destinatarios = [];
+        const { carpeta_id, contactos } = recordatorio;
 
-        if (!grupo) {
-          console.log('🔍 No se encontró groupId o falló getChatById, obteniendo todos los chats...');
-          let chats;
-          const maxAttempts = 3;
-          let attempt = 0;
-          while (attempt < maxAttempts) {
-            try {
-              console.time(`getChats intento ${attempt + 1}`);
-              chats = await Promise.race([
-                client.getChats(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout al obtener chats')), 15000))
-              ]);
-              console.timeEnd(`getChats intento ${attempt + 1}`);
-              break;
-            } catch (chatErr) {
-              attempt++;
-              console.error(`❌ Error al obtener chats (intento ${attempt}/${maxAttempts}):`, chatErr.message);
-              if (attempt === maxAttempts) continue;
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          }
-          if (!chats) {
-            console.error(`❌ No se pudieron obtener chats después de ${maxAttempts} intentos`);
+        if (carpeta_id) {
+          // Obtener contactos de la carpeta
+          console.log(`📁 Obteniendo contactos de la carpeta ID: ${carpeta_id}`);
+          const carpetaResult = await new Promise((resolve) => {
+            db.query('SELECT contactos FROM carpetas_contactos WHERE id = $1', [carpeta_id], (err, row) => {
+              if (err) {
+                console.error('❌ Error al obtener carpeta:', err.message);
+                resolve(null);
+              } else {
+                resolve(row);
+              }
+            });
+          });
+
+          if (carpetaResult && carpetaResult.rows[0]) {
+            destinatarios = carpetaResult.rows[0].contactos || [];
+            console.log(`📋 Contactos encontrados en la carpeta: ${destinatarios.length}`);
+          } else {
+            console.error(`❌ No se encontró la carpeta ID ${carpeta_id}`);
             continue;
           }
-          grupo = chats.find(chat => chat.isGroup && chat.name === 'Prueba Autowhapp');
-        }
-
-        if (!grupo) {
-          console.error(`❌ No se encontró el grupo "Prueba Autowhapp" para negocio ${negocio_id}`);
+        } else if (contactos && Array.isArray(contactos)) {
+          // Usar contactos individuales
+          destinatarios = contactos;
+          console.log(`📋 Contactos individuales: ${destinatarios.length}`);
+        } else {
+          console.error(`❌ No se encontraron destinatarios para el recordatorio ID ${id}`);
           continue;
         }
 
-        console.log(`📤 Enviando mensaje al grupo ID: ${grupo.id._serialized}`);
+        if (destinatarios.length === 0) {
+          console.error(`❌ No hay destinatarios para el recordatorio ID ${id}`);
+          continue;
+        }
+
+        console.log(`📤 Enviando recordatorio a ${destinatarios.length} contactos...`);
         console.time(`🕐 Tiempo envío recordatorio ID ${id}`);
 
-        try {
-          await client.sendMessage(grupo.id._serialized, `🔔 Recordatorio: ${message}`);
-          console.timeEnd(`🕐 Tiempo envío recordatorio ID ${id}`);
-          console.log(`✉️ Recordatorio enviado con éxito para ID ${id}`);
+        let enviadosExitosos = 0;
+        let erroresEnvio = 0;
 
+        for (const contactId of destinatarios) {
+          try {
+            console.log(`📧 Enviando mensaje a contacto: ${contactId}`);
+            await client.sendMessage(contactId, `🔔 Recordatorio: ${message}`);
+            enviadosExitosos++;
+            console.log(`✅ Mensaje enviado exitosamente a ${contactId}`);
+            
+            // Pequeña pausa entre envíos para evitar spam
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (sendErr) {
+            erroresEnvio++;
+            console.error(`❌ Error al enviar mensaje a ${contactId}:`, sendErr.message);
+          }
+        }
+
+        console.timeEnd(`🕐 Tiempo envío recordatorio ID ${id}`);
+        console.log(`📊 Resumen envío recordatorio ID ${id}: ${enviadosExitosos} exitosos, ${erroresEnvio} errores`);
+
+        if (enviadosExitosos > 0) {
           db.query('UPDATE recordatorios SET last_sent = $1 WHERE id = $2', [currentDateTime, id], (err) => {
             if (err) console.error('❌ Error al actualizar last_sent:', err.message);
             else console.log(`✅ last_sent actualizado para recordatorio ID ${id}`);
           });
-        } catch (sendErr) {
-          console.error(`🚨 Error al enviar mensaje para recordatorio ID ${id}:`, sendErr.message);
         }
       } catch (err) {
         console.error(`❌ Error procesando recordatorio ID ${recordatorio.id}:`, err.message);
@@ -529,8 +538,15 @@ app.get('/api/negocio/:id', checkJwt, async (req, res) => {
       [id]
     );
 
-    // Agregar las reservas al objeto del negocio
+    // Obtener los recordatorios del negocio
+    const recordatoriosResult = await db.query(
+      'SELECT * FROM recordatorios WHERE negocio_id = $1 ORDER BY id',
+      [id]
+    );
+
+    // Agregar las reservas y recordatorios al objeto del negocio
     negocio.reservas = reservasResult.rows;
+    negocio.recordatorios = recordatoriosResult.rows;
 
     res.json(negocio);
   } catch (err) {
@@ -1330,8 +1346,8 @@ app.post('/api/mensajes-pedidos', checkJwt, (req, res) => {
 // Endpoint para crear un recordatorio
 app.post('/api/recordatorios/:negocioId', checkJwt, (req, res) => {
   const { negocioId } = req.params;
-  const { message, frequency, time, day, activo = 1 } = req.body;
-  console.log('Datos recibidos en POST /api/recordatorios/:negocioId:', { negocioId, message, frequency, time, day, activo });
+  const { message, frequency, time, day, activo = 1, carpetaId, contactos } = req.body;
+  console.log('Datos recibidos en POST /api/recordatorios/:negocioId:', { negocioId, message, frequency, time, day, activo, carpetaId, contactos });
 
   if (!message || !frequency || !time) {
     console.log('Faltan campos obligatorios: message, frequency o time');
@@ -1349,15 +1365,16 @@ app.post('/api/recordatorios/:negocioId', checkJwt, (req, res) => {
   const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
 
   db.query(
-    'INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo, last_sent) VALUES ($1, $2, $3, $4, $5, $6, NULL)',
-    [negocioId, message, frequency, time, normalizedDay, activo ? 1 : 0],
-    function (err) {
+    'INSERT INTO recordatorios (negocio_id, message, frequency, time, day, activo, last_sent, carpeta_id, contactos) VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8) RETURNING id',
+    [negocioId, message, frequency, time, normalizedDay, activo ? 1 : 0, carpetaId || null, contactos || null],
+    function (err, result) {
       if (err) {
         console.error('Error al crear recordatorio:', err.message);
         return res.status(500).json({ error: err.message });
       }
-      console.log('Recordatorio creado con éxito, ID:', this.lastID);
-      res.json({ success: true, id: this.lastID });
+      const insertedId = result.rows[0].id;
+      console.log('Recordatorio creado con éxito, ID:', insertedId);
+      res.json({ success: true, id: insertedId });
     }
   );
 });
@@ -1365,8 +1382,8 @@ app.post('/api/recordatorios/:negocioId', checkJwt, (req, res) => {
 // Endpoint para actualizar un recordatorio
 app.put('/api/recordatorios/:id', checkJwt, (req, res) => {
   const { id } = req.params;
-  const { message, frequency, time, day, activo = 1 } = req.body;
-  console.log('Datos recibidos en PUT /api/recordatorios/:id:', { id, message, frequency, time, day, activo });
+  const { message, frequency, time, day, activo = 1, carpetaId, contactos } = req.body;
+  console.log('Datos recibidos en PUT /api/recordatorios/:id:', { id, message, frequency, time, day, activo, carpetaId, contactos });
 
   if (!message || !frequency || !time) {
     console.log('Faltan campos obligatorios: message, frequency o time');
@@ -1384,14 +1401,14 @@ app.put('/api/recordatorios/:id', checkJwt, (req, res) => {
   const normalizedDay = frequency === 'once' && day ? new Date(day).toISOString().slice(0, 10) : day;
 
   db.query(
-    'UPDATE recordatorios SET message = $1, frequency = $2, time = $3, day = $4, activo = $5 WHERE id = $6',
-    [message, frequency, time, normalizedDay, activo ? 1 : 0, id],
-    function (err) {
+    'UPDATE recordatorios SET message = $1, frequency = $2, time = $3, day = $4, activo = $5, carpeta_id = $6, contactos = $7 WHERE id = $8',
+    [message, frequency, time, normalizedDay, activo ? 1 : 0, carpetaId || null, contactos || null, id],
+    function (err, result) {
       if (err) {
         console.error('Error al actualizar recordatorio:', err.message);
         return res.status(500).json({ error: err.message });
       }
-      if (this.rowCount === 0) {
+      if (result.rowCount === 0) {
         console.log('Recordatorio no encontrado:', id);
         return res.status(404).json({ error: 'Recordatorio no encontrado' });
       }
@@ -2216,6 +2233,145 @@ app.put('/api/contactos/:negocioId/:contactId', checkJwt, async (req, res) => {
   } catch (err) {
     console.error('Error updating contact responder status:', err);
     res.status(500).json({ error: 'Error al actualizar contacto' });
+  }
+});
+
+// Endpoints para Carpetas de Contactos
+app.post('/api/carpetas-contactos', checkJwt, async (req, res) => {
+  const { negocioId, nombre, contactos } = req.body;
+  const auth0Id = req.auth.sub;
+
+  console.log('Datos recibidos en POST /api/carpetas-contactos:', { negocioId, nombre, contactos });
+
+  if (!negocioId || !nombre) {
+    return res.status(400).json({ error: 'negocioId y nombre son requeridos' });
+  }
+
+  try {
+    // Verificar que el negocio pertenece al usuario autenticado
+    const verifyResult = await db.query(
+      `SELECT n.id FROM negocios n
+       JOIN users u ON n.user_id = u.id
+       WHERE n.id = $1 AND u.auth0_id = $2`,
+      [negocioId, auth0Id]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado o no tienes permisos para modificarlo' });
+    }
+
+    // Crear la carpeta
+    const result = await db.query(
+      'INSERT INTO carpetas_contactos (negocio_id, nombre, contactos) VALUES ($1, $2, $3) RETURNING id',
+      [negocioId, nombre, contactos || []]
+    );
+
+    const carpetaId = result.rows[0].id;
+    console.log('Carpeta de contactos creada con éxito, ID:', carpetaId);
+    res.json({ success: true, id: carpetaId });
+  } catch (err) {
+    console.error('Error al crear carpeta de contactos:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/carpetas-contactos/:negocioId', checkJwt, async (req, res) => {
+  const { negocioId } = req.params;
+  const auth0Id = req.auth.sub;
+
+  try {
+    // Verificar que el negocio pertenece al usuario autenticado
+    const verifyResult = await db.query(
+      `SELECT n.id FROM negocios n
+       JOIN users u ON n.user_id = u.id
+       WHERE n.id = $1 AND u.auth0_id = $2`,
+      [negocioId, auth0Id]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado o no tienes permisos para acceder' });
+    }
+
+    // Obtener las carpetas
+    const carpetas = await db.query(
+      'SELECT id, nombre, contactos FROM carpetas_contactos WHERE negocio_id = $1 ORDER BY created_at DESC',
+      [negocioId]
+    );
+
+    res.json(carpetas.rows);
+  } catch (err) {
+    console.error('Error al obtener carpetas:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/carpetas-contactos/:id', checkJwt, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, contactos } = req.body;
+  const auth0Id = req.auth.sub;
+
+  try {
+    // Verificar que la carpeta pertenece al usuario autenticado
+    const verifyResult = await db.query(
+      `SELECT c.id FROM carpetas_contactos c
+       JOIN negocios n ON c.negocio_id = n.id
+       JOIN users u ON n.user_id = u.id
+       WHERE c.id = $1 AND u.auth0_id = $2`,
+      [id, auth0Id]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Carpeta no encontrada o no tienes permisos para modificarla' });
+    }
+
+    // Actualizar la carpeta
+    const result = await db.query(
+      'UPDATE carpetas_contactos SET nombre = $1, contactos = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+      [nombre, contactos || [], id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Carpeta no encontrada' });
+    }
+
+    console.log(`Carpeta ${id} actualizada con éxito`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error al actualizar carpeta:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/carpetas-contactos/:id', checkJwt, async (req, res) => {
+  const { id } = req.params;
+  const auth0Id = req.auth.sub;
+
+  try {
+    // Verificar que la carpeta pertenece al usuario autenticado
+    const verifyResult = await db.query(
+      `SELECT c.id FROM carpetas_contactos c
+       JOIN negocios n ON c.negocio_id = n.id
+       JOIN users u ON n.user_id = u.id
+       WHERE c.id = $1 AND u.auth0_id = $2`,
+      [id, auth0Id]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Carpeta no encontrada o no tienes permisos para eliminarla' });
+    }
+
+    // Eliminar la carpeta
+    const result = await db.query('DELETE FROM carpetas_contactos WHERE id = $1', [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Carpeta no encontrada' });
+    }
+
+    console.log(`Carpeta ${id} eliminada con éxito`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error al eliminar carpeta:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
