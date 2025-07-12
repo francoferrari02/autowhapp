@@ -22,6 +22,7 @@ import {
   InputLabel,
   FormControl,
 } from "@mui/material";
+import ProtectedModule from '../components/ProtectedModule';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 
 interface Invoice {
@@ -105,7 +106,8 @@ const Payments: React.FC = () => {
   const chartData = generateChartData();
 
   return (
-    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+    <ProtectedModule module="payments">
+      <div className="flex-grow bg-blue-600 p-6 min-h-screen">
       <div className="max-w-[1200px] mx-auto">
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-2xl font-poppins font-bold text-white mt-2">
@@ -228,6 +230,7 @@ const Payments: React.FC = () => {
         </Dialog>
       </div>
     </div>
+    </ProtectedModule>
   );
 };
 

@@ -1109,10 +1109,10 @@ app.post('/api/negocios', checkJwt, async (req, res) => {
 
     // Insertar el negocio
     const result = await client.query(
-      `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, user_id, plan)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO negocios (nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, user_id, plan, estado_bot)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id`,
-      [nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, userId, plan]
+      [nombre, numero_telefono, tipo_negocio, localidad, direccion, horarios, contexto, userId, plan, 1]
     );
 
     await initializeClients();

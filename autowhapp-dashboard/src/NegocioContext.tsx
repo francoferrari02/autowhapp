@@ -5,6 +5,7 @@ import axios from 'axios';
 interface Negocio {
   id: number;
   nombre: string;
+  plan?: string;
   // ... otros campos del negocio
 }
 

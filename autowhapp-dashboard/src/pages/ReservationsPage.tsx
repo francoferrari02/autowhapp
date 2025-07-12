@@ -3,6 +3,7 @@ import { Box, Typography, Button, TextField, Modal, Tabs, Tab } from '@mui/mater
 import Calendar from '../components/Calendar';
 import ReservationList from '../components/ReservationList';
 import ModuleStatus from '../components/ModuleStatus';
+import ProtectedModule from '../components/ProtectedModule';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -428,7 +429,8 @@ const ReservationsPage: React.FC = () => {
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+    <ProtectedModule module="reservations">
+      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
       <div className="flex-grow bg-blue-600 p-6 min-h-screen">
         <div className="max-w-[1200px] mx-auto">
           <div className="flex justify-between items-start mb-4">
@@ -703,6 +705,7 @@ const ReservationsPage: React.FC = () => {
         </div>
       </div>
     </LocalizationProvider>
+    </ProtectedModule>
   );
 };
 

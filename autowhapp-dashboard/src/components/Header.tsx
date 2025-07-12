@@ -21,6 +21,7 @@ const Header: React.FC = () => {
     'Plan Tienda',
     'Plan Tienda Plus',
     'Plan Premium',
+    'Plan Personalizado',
   ]);
   const navigate = useNavigate();
 

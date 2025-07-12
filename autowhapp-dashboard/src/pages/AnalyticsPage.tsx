@@ -4,6 +4,7 @@ import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tool
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import { useAuth0 } from '@auth0/auth0-react';
+import ProtectedModule from '../components/ProtectedModule';
 
 // Función para obtener el mes y año actual
 const getCurrentMonthYear = () => {
@@ -138,7 +139,8 @@ const AnalyticsPage: React.FC = () => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#FF6384', '#36A2EB', '#FFCE56'];
 
   return (
-    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+    <ProtectedModule module="analytics">
+      <div className="flex-grow bg-blue-600 p-6 min-h-screen">
       <div className="max-w-[1200px] mx-auto">
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-2xl font-poppins font-bold text-white mt-2">
@@ -236,6 +238,7 @@ const AnalyticsPage: React.FC = () => {
         </Box>
       </div>
     </div>
+    </ProtectedModule>
   );
 };
 

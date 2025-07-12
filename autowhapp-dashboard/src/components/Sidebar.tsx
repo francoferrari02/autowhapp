@@ -3,6 +3,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNegocio } from '../NegocioContext';
+import { getAllowedModules } from '../utils/planPermissions';
 import {
   ChatBubbleBottomCenterTextIcon,
   ShoppingCartIcon,
@@ -33,6 +34,10 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
     return null;
   }
 
+  // Filtrar módulos según el plan
+  const allowedModules = getAllowedModules(negocio?.plan);
+  const filteredNavItems = NAV_ITEMS.filter(item => allowedModules.includes(item.id));
+
   return (
     <aside
       className="bg-[#000000] fixed top-16 left-0 transition-all duration-300 ease-in-out w-52 z-40"
@@ -44,7 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selected }) => {
       }}
     >
       <nav className="flex flex-col gap-4 pl-2 pr-0 py-2 overflow-y-auto h-full"> 
-        {NAV_ITEMS.map(({ id, label, icon: Icon, path }) => {
+        {filteredNavItems.map(({ id, label, icon: Icon, path }) => {
           const isActive = selected === id;
           return (
             <button

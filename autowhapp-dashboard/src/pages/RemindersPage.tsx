@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@mui/material';
 import ModuleStatus from '../components/ModuleStatus';
+import ProtectedModule from '../components/ProtectedModule';
 import axios from 'axios';
 import { useNegocio } from '../NegocioContext';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -296,7 +297,8 @@ const RemindersPage: React.FC = () => {
   };
 
   return (
-    <div className="flex-grow bg-blue-600 p-6 min-h-screen">
+    <ProtectedModule module="reminders">
+      <div className="flex-grow bg-blue-600 p-6 min-h-screen">
       <div className="max-w-[1200px] mx-auto">
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-2xl font-poppins font-bold text-white mt-2">
@@ -585,6 +587,7 @@ const RemindersPage: React.FC = () => {
         </Snackbar>
       </div>
     </div>
+    </ProtectedModule>
   );
 };
 
