@@ -58,11 +58,11 @@ services:
     ports:
       - "5678:5678"
     environment:
-      - N8N_HOST=0.0.0.0
+      - N8N_HOST=http://localhost:5678
       - N8N_PORT=5678
       - N8N_LOG_LEVEL=debug
       - N8N_TRUST_PROXY=true
-      - WEBHOOK_URL=http://0.0.0.0:5678
+      - WEBHOOK_URL=http://localhost:5678
     volumes:
       - ./n8n-workflows:/home/node/.n8n
     depends_on:
