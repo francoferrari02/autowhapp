@@ -88,6 +88,11 @@ const MockAnalyticsPage: React.FC = () => {
     setVentasMesAnterior(data.ventasMesAnterior);
     setTotalReservas(data.totalReservas);
     setIngresos(data.ingresos);
+    
+    // Calcular ingresos totales sumando todos los valores del histórico
+    const ingresosTotalesCalculados = Object.values(newData).reduce((acc: number, entry: any) => acc + (entry.ingresos || 0), 0);
+    setIngresosTotales(ingresosTotalesCalculados);
+    
   setProductoMasVendido(productosVendidos[cantProductoVendido.indexOf(Math.max(...cantProductoVendido))]);
   setProductoMenosVendido(productosVendidos[cantProductoVendido.indexOf(Math.min(...cantProductoVendido))]);
   };
@@ -104,6 +109,10 @@ const MockAnalyticsPage: React.FC = () => {
       setVentasMesAnterior(data.ventasMesAnterior);
       setTotalReservas(data.totalReservas);
       setIngresos(data.ingresos);
+      
+      // Calcular ingresos totales sumando todos los valores del histórico
+      const ingresosTotalesCalculados = Object.values(historicoDatos).reduce((acc: number, entry: any) => acc + (entry.ingresos || 0), 0);
+      setIngresosTotales(ingresosTotalesCalculados);
     }
   }, [selectedMonth, selectedYear, historicoDatos]);
 
@@ -267,8 +276,6 @@ const MockAnalyticsPage: React.FC = () => {
     name: nombre,
     value: cantProductoVendido[i]
   }));
-
-  const ingresosTotales = Object.values(historicoDatos).reduce((acc: number, entry: any) => acc + (entry.ingresos || 0), 0);
 
   const datosComparativos = Object.entries(historicoDatos)
     .filter(([key]) => key.startsWith(`${selectedYear}-`))

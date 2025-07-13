@@ -2,7 +2,7 @@
   "name": "autowhapp-dashboard",
   "version": "0.1.0",
   "private": true,
-  "proxy": "back.railway.internal",
+  "proxy": "https://back.railway.internal",
   "dependencies": {
     "@auth0/auth0-react": "^2.3.0",
     "@emotion/react": "^11.14.0",

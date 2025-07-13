@@ -3,6 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
+import { ThemeProvider } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
 import { NegocioProvider, useNegocio } from './NegocioContext';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -15,6 +17,7 @@ import RemindersPage from './pages/RemindersPage';
 import AnalyticsPage from './pages/MockAnalyticsPage';
 import LandingPage from './pages/LandingPage';
 import PaymentsPage from './pages/Payments';
+import theme from './theme';
 import './index.css';
 
 const LoadingScreen: React.FC = () => (
@@ -116,11 +119,14 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => (
-  <NegocioProvider>
-    <Router>
-      <AppContent />
-    </Router>
-  </NegocioProvider>
+  <ThemeProvider theme={theme}>
+    <CssBaseline />
+    <NegocioProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </NegocioProvider>
+  </ThemeProvider>
 );
 
 export default App;
