@@ -1027,7 +1027,7 @@ app.post('/api/actualizar-estado-bot', checkJwt, async (req, res) => {
     // Actualizar el estado del bot
     await client.query(
       'UPDATE negocios SET estado_bot = $1 WHERE id = $2',
-      [estadoBot ? 1 : 0, negocioId]
+      [estadoBot ? 1 : 1, negocioId]
     );
 
     console.log(`Estado del bot actualizado para negocio ${negocioId}:`, estadoBot);
@@ -1177,7 +1177,7 @@ app.put('/api/negocio/:id', checkJwt, (req, res) => {
 
   db.query(
     `UPDATE negocios SET nombre = $1, numero_telefono = $2, tipo_negocio = $3, localidad = $4, direccion = $5, horarios = $6, contexto = $7, modulo_pedidos = $8, estado_bot = $9, modulo_reservas = $10 WHERE id = $11`,
-    [nombre, numero_telefono, tipo_negocio, localidad, direccion, JSON.stringify(horarios), contexto, modulo_pedidos ? 1 : 0, estado_bot ? 1 : 0, modulo_reservas ? 1 : 0, req.params.id],
+    [nombre, numero_telefono, tipo_negocio, localidad, direccion, JSON.stringify(horarios), contexto, modulo_pedidos ? 1 : 0, estado_bot ? 1 : 1, modulo_reservas ? 1 : 0, req.params.id],
     (err) => {
       if (err) {
         console.error('Error al actualizar negocio:', err.message);

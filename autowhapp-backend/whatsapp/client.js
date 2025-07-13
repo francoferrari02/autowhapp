@@ -15,6 +15,8 @@ const db = new Pool({
   port: process.env.DB_PORT || 5432,
 });
 
+const pedidosPendientes ={};
+
 // Test database connection
 db.connect()
   .then(() => {
@@ -337,6 +339,22 @@ function initializeClientForNegocio(negocio) {
     if (!numeroCliente.endsWith('@c.us')) {
       numeroCliente += '@c.us';
     }
+    if (msg.body.trim().toLowerCase() === 'confirmo') {
+      const pedidoPendiente = pedidosPendientes[numeroCliente];
+      if (pedidoPendiente) {
+        console.log('✅ Confirmando pedido pendiente:', pedidoPendiente);
+        try {
+          await handlePedido(pedidoPendiente, client, msg.from, negocioActualizado.nombre);
+          delete pedidosPendientes[numeroCliente];
+        } catch (err) {
+          console.error('❌ Error al confirmar pedido:', err.message);
+          await client.sendMessage(msg.from, '❌ Error al confirmar el pedido. Intentá de nuevo.');
+        }
+      } else {
+        await client.sendMessage(msg.from, '⚠️ No tenés ningún pedido pendiente para confirmar.');
+      }
+      return; // 👈 muy importante: evita enviar a n8n
+    }
 
     const webhookUrl = 'http://n8n:5678/webhook/procesar-mensaje';
     const payload = {
@@ -365,7 +383,9 @@ function initializeClientForNegocio(negocio) {
         await handleReserva(reservaData, client, msg.from, negocio.nombre);
       } else if (pedidoData) {
         console.log('🔍 Pedido detectado:', pedidoData);
-        await handlePedido(pedidoData, client, msg.from, negocio.nombre); 
+
+        pedidosPendientes[numeroCliente] = pedidoData;
+        await client.sendMessage(msg.from, '📝 Detecté tu pedido. Si querés confirmarlo, respondé con CONFIRMO.');
       } else {
         await client.sendMessage(msg.from, respuesta);
         console.log('📨 Respuesta enviada (no es reserva ni pedido):', respuesta);
