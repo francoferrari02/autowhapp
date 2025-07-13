@@ -149,14 +149,15 @@ const AnalyticsPage: React.FC = () => {
           <div className="flex-1 flex justify-end max-w-[480px]">
             <Box sx={{ backgroundColor: 'white', padding: 2, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
               <FormControl variant="outlined" sx={{ minWidth: 150 }}>
-                <InputLabel>Mes y Año</InputLabel>
+                <InputLabel sx={{ fontFamily: 'Poppins, sans-serif' }}>Mes y Año</InputLabel>
                 <Select
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value as string)}
                   label="Mes y Año"
+                  sx={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   {dateOptions.map((date) => (
-                    <MenuItem key={date} value={date}>
+                    <MenuItem key={date} value={date} sx={{ fontFamily: 'Poppins, sans-serif' }}>
                       {new Date(date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
                     </MenuItem>
                   ))}
@@ -165,27 +166,27 @@ const AnalyticsPage: React.FC = () => {
             </Box>
           </div>
         </div>
-        <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)' }}>
-          {error && <Typography color="error">{error}</Typography>}
+        <Box sx={{ backgroundColor: 'white', padding: 6, borderRadius: 8, boxShadow: '0 0 7px 7px rgba(0,0,0,0.2)', fontFamily: 'Poppins, sans-serif' }}>
+          {error && <Typography color="error" sx={{ fontFamily: 'Poppins, sans-serif' }}>{error}</Typography>}
 
           {/* Métricas clave */}
           <Box display="flex" justifyContent="space-between" mb={4}>
             <Card sx={{ minWidth: 200, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
               <CardContent>
-                <Typography variant="h6">Total de Ventas</Typography>
-                <Typography variant="h4">{totalVentas}</Typography>
+                <Typography variant="h6" sx={{ fontFamily: 'Poppins, sans-serif' }}>Total de Ventas</Typography>
+                <Typography variant="h4" sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 'bold' }}>{totalVentas}</Typography>
               </CardContent>
             </Card>
             <Card sx={{ minWidth: 200, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
               <CardContent>
-                <Typography variant="h6">Total de Reservas</Typography>
-                <Typography variant="h4">{totalReservas}</Typography>
+                <Typography variant="h6" sx={{ fontFamily: 'Poppins, sans-serif' }}>Total de Reservas</Typography>
+                <Typography variant="h4" sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 'bold' }}>{totalReservas}</Typography>
               </CardContent>
             </Card>
             <Card sx={{ minWidth: 200, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
               <CardContent>
-                <Typography variant="h6">Ingresos Generados</Typography>
-                <Typography variant="h4">${ingresos}</Typography>
+                <Typography variant="h6" sx={{ fontFamily: 'Poppins, sans-serif' }}>Ingresos Generados</Typography>
+                <Typography variant="h4" sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 'bold' }}>${ingresos}</Typography>
               </CardContent>
             </Card>
           </Box>
@@ -194,16 +195,16 @@ const AnalyticsPage: React.FC = () => {
           <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
             {/* Gráfico de polígono de frecuencias */}
             <Box sx={{ width: '50%', backgroundColor: '#f5f5f5', borderRadius: 1, p: 2, textAlign: 'center' }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', fontFamily: 'Poppins', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', fontFamily: 'Poppins, sans-serif', mb: 2 }}>
                 Frecuencia de Ventas
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                 <LineChart width={500} height={300} data={frecuenciaVentas}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <XAxis dataKey="name" style={{ fontFamily: 'Poppins, sans-serif' }} />
+                  <YAxis style={{ fontFamily: 'Poppins, sans-serif' }} />
+                  <Tooltip contentStyle={{ fontFamily: 'Poppins, sans-serif' }} />
+                  <Legend wrapperStyle={{ fontFamily: 'Poppins, sans-serif' }} />
                   <Line type="monotone" dataKey="ventas" stroke="#8884d8" />
                 </LineChart>
               </Box>
@@ -211,7 +212,7 @@ const AnalyticsPage: React.FC = () => {
 
             {/* Gráfico de pastel */}
             <Box sx={{ width: '50%', backgroundColor: '#f5f5f5', borderRadius: 1, p: 2, textAlign: 'center' }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', fontFamily: 'Poppins', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', fontFamily: 'Poppins, sans-serif', mb: 2 }}>
                 Distribución de Ventas
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center' }}>
@@ -229,8 +230,8 @@ const AnalyticsPage: React.FC = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip contentStyle={{ fontFamily: 'Poppins, sans-serif' }} />
+                  <Legend wrapperStyle={{ fontFamily: 'Poppins, sans-serif' }} />
                 </PieChart>
               </Box>
             </Box>
